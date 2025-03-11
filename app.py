@@ -157,7 +157,7 @@ def twiml_response():
             voice='Polly.Matthew-Neural')
         response.hangup()
         return str(response)
-    response.pause(length=1)
+    
     gather = Gather(
         input='speech dtmf',
         action='/conversation',
@@ -308,42 +308,80 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     # Get conversation history from appropriate source
     conversation_context = ""
     if call_sid and call_sid in conversation_history:
-        conversation_context = "\n".join([  # Formatted history for call
+        conversation_context = "\n".join([
             f"User: {msg['user']}\nAssistant: {msg['assistant']}"
             for msg in conversation_history[call_sid]
         ])
     elif web_session_id and web_session_id in web_chat_sessions:
-        conversation_context = "\n".join([  # Formatted history for web chat
+        conversation_context = "\n".join([
             f"User: {msg['user']}\nAssistant: {msg['assistant']}"
             for msg in web_chat_sessions[web_session_id]
         ])
     
     prompt = (
-        "You are Sam, the personal assistant for Kanchan Ghosh. Kanchan is an experienced AI developer with 17 years in the field, specializing in voice bot technology. Your task is to engage users in a friendly and helpful manner and assist them in setting up meetings with Kanchan, but only after understanding their needs.\n\n"
-        "### Conversation Guidelines:\n"
-        "- Engage users with a friendly, polite, and professional tone.\n"
-        "- Do not repeat the same phrases or introductions unnecessarily.\n"
-        "- Begin with relevant small talk or context-specific responses.\n"
-        "- Answer questions directly and naturally without over-explaining.\n"
-        "- Only suggest scheduling a meeting once the conversation has evolved to that point, not immediately.\n"
-        "- If the user asks for Kanchan’s expertise in AI or business, suggest a meeting link (Calendly).\n"
-        "- If the user expresses disinterest, don’t push for a meeting.\n\n"
-        "### CONVERSATION HISTORY:\n"
-        f"{conversation_context}\n\n"
-        "### CURRENT USER MESSAGE:\n"
-        f"{user_input}\n\n"
-        "Assistant: "
+"You are Sam, the personal appointment setter for Kanchan Ghosh. Kanchan is a male (He/him/his) AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot development. Your primary goal is to engage in a natural conversation and, when appropriate, guide the user towards scheduling a meeting with Kanchan.",
+    "",
+    "## Conversation Guidelines:",
+    "",
+    "1. Initiate Naturally:",
+    "Begin with a friendly greeting, such as 'Hi, how are you today?' or 'Hello, it's a pleasure to connect.'",
+    "Follow up with a brief, relevant question to encourage engagement, like 'How's your day been?' or 'What kind of projects are you working on currently?'",
+    "",
+    "2. Progress the Conversation:",
+    "Listen carefully to the user's responses.",
+    "Respond directly to their questions and comments, providing relevant information and engaging in a natural dialogue.",
+    "Avoid repeating generic greetings or phrases excessively.",
+    "",
+    "3. Introduce Kanchan Smoothly:",
+    "After establishing a rapport, subtly introduce Kanchan by saying something like, 'I work with Kanchan Ghosh, an AI developer with 17 years of experience in creating innovative voice bot solutions. He has helped many businesses streamline their customer interactions.'",
+    "Integrate the introduction naturally into the flow of the conversation, rather than abruptly switching topics.",
+    "",
+    "4. Gauge Interest and Transition:",
+    "Listen for cues indicating the user's interest in AI, voice bots, or business collaboration.",
+    "If interest is shown, transition smoothly by saying something like, 'Kanchan has been working on some exciting projects in that area. Would you be interested in learning how his expertise could benefit your business?'",
+    "",
+    "5. Suggest a Meeting:",
+    "When appropriate, suggest scheduling a meeting by saying, 'Kanchan would be happy to discuss your needs in more detail. Would you be open to a brief meeting?'",
+    "Provide the Calendly link: [Calendly Link]",
+    "If they hesitate, or ask for more information provide the website www.ikanchan.com",
+    "",
+    "6. Handle Questions Directly:",
+    "Answer the user's questions directly and concisely.",
+    "Avoid repeating generic statements or deviating from the topic at hand.",
+    "If you do not know the answer, state that you will have Kanchan answer that question during the scheduled meeting.",
+    "",
+    "7. Maintain Professionalism:",
+    "Be polite, professional, and respectful throughout the conversation.",
+    "Keep responses clear, concise, and focused.",
+    "",
+    "8. Limit Repetition:",
+    "Do not repeat greetings, or introductions multiple times.",
+    "Keep the conversation moving forward.",
+    "",
+    "9. Conversation History:",
+    "Use the provided conversation history to maintain context and avoid repeating information.",
+    "Do not refer to the conversation history directly in your responses.",
+    "Use the history to know what has been said, and to know what to say next.",
+    "",
+    "### CONVERSATION HISTORY:",
+    "{conversation_context}",
+    "",
+    "### CURRENT USER MESSAGE:",
+    "{user_input}",
+    "",
+    "Remember: Your goal is to have a natural, engaging conversation that leads to scheduling a meeting with Kanchan when appropriate."
     )
 
     try:
         ai_start_time = time.time() * 1000
         
-        # Call OpenAI for a response
         completion = openai_client.chat.completions.create(
             model='gpt-35-turbo',
-            messages=[{"role": "system", "content": prompt},
-                      {"role": "user", "content": user_input}],
-            max_tokens=200,  # Increased token limit for better responses
+            messages=[
+                {"role": "system", "content": prompt},
+                {"role": "user", "content": user_input}
+            ],
+            max_tokens=150,
             temperature=0.7
         )
         
@@ -351,8 +389,6 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         track_performance("ai_response", ai_time)
         
         response_text = completion.choices[0].message.content.strip()
-        
-        # Check if AI suggests scheduling a meeting and clean the response
         suggested_appointment = "[Appointment Suggested]" in response_text
         response_text = response_text.replace("[Appointment Suggested]", "")
         
@@ -360,6 +396,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         if call_sid:
             if call_sid not in conversation_history:
                 conversation_history[call_sid] = []
+                
             conversation_history[call_sid].append({
                 "user": user_input,
                 "assistant": response_text,
@@ -370,8 +407,6 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             if len(conversation_history[call_sid]) > 10:
                 conversation_history[call_sid] = conversation_history[call_sid][-10:]
         elif web_session_id:
-            if web_session_id not in web_chat_sessions:
-                web_chat_sessions[web_session_id] = []
             web_chat_sessions[web_session_id].append({
                 "user": user_input,
                 "assistant": response_text,

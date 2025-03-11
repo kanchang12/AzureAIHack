@@ -339,7 +339,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         ai_start_time = time.time() * 1000
         
         completion = openai_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT_NAME,
+            model='gpt-35-turbo',
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_input}

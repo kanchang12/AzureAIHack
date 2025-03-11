@@ -1,7 +1,6 @@
 flask
 twilio
 openai
-azure-ai
-requests
+azure-ai-textanalytics
 gunicorn
 

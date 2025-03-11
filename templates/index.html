@@ -1,0 +1,754 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AI Appointment Bot | Kanchan Ghosh</title>
+
+  <style>
+    :root {
+      --mauve-light: #E0B0FF;
+      --mauve: #D8A7E8;
+      --mauve-dark: #C48ED3;
+      --deep-blue: #1A237E;
+      --deep-blue-light: #303F9F;
+      --deep-blue-dark: #0D1355;
+      --gray-light: #f8f9fa;
+      --white: #ffffff;
+    }
+
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      margin: 0;
+      padding: 0;
+      background-color: #f0f2f5;
+      background-image: linear-gradient(135deg, var(--mauve-light) 0%, var(--deep-blue-light) 100%);
+      background-attachment: fixed;
+      min-height: 100vh;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 2rem;
+    }
+
+    .header {
+      text-align: center;
+      margin-bottom: 2rem;
+      color: var(--white);
+      text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.2);
+    }
+
+    .header h1 {
+      font-size: 2.5rem;
+      margin-bottom: 0.5rem;
+    }
+
+    .header p {
+      font-size: 1.1rem;
+      opacity: 0.9;
+    }
+
+    .about-ai {
+      text-align: center;
+      margin: 2rem 0;
+      font-size: 1.2rem;
+      color: var(--deep-blue);
+    }
+
+    .about-ai h2 {
+      font-size: 1.8rem;
+      color: var(--deep-blue-dark);
+    }
+
+    .about-ai p {
+      font-size: 1rem;
+      line-height: 1.6;
+      margin-bottom: 1rem;
+      opacity: 0.85;
+    }
+
+    .squares-container {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+      grid-gap: 2rem;
+      margin: 2rem 0;
+    }
+
+    .square {
+      background-color: var(--white);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+
+    .square-content {
+      display: flex;
+      flex-direction: row;
+      align-items: stretch;
+      padding: 1.5rem;
+      gap: 1rem;
+      flex-grow: 1;
+    }
+
+    .square-content .text {
+      flex: 1;
+    }
+
+    .square-content .image {
+      flex: 1;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      overflow: hidden;
+    }
+
+    .square-content .image img {
+      max-width: 100%;
+      max-height: 200px;
+      object-fit: contain;
+      border-radius: 10px;
+    }
+
+    .call-to-action {
+      background-color: var(--white);
+      border-radius: 16px;
+      padding: 2rem;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      margin: 2rem 0;
+      text-align: center;
+    }
+
+    .call-to-action h3 {
+      color: var(--deep-blue);
+      font-size: 1.8rem;
+      margin-bottom: 1rem;
+    }
+
+    .call-to-action p {
+      font-size: 1.1rem;
+      margin-bottom: 2rem;
+      color: var(--deep-blue);
+      opacity: 0.8;
+    }
+
+    .phone-input {
+      padding: 0.75rem 1.25rem;
+      width: 80%;
+      max-width: 400px;
+      font-size: 1rem;
+      border: 2px solid #ddd;
+      border-radius: 8px;
+      margin-bottom: 1rem;
+      outline: none;
+    }
+
+    .action-button {
+      background: linear-gradient(to right, var(--deep-blue), var(--deep-blue-light));
+      color: white;
+      padding: 0.75rem 2rem;
+      font-size: 1.1rem;
+      border: none;
+      border-radius: 24px;
+      cursor: pointer;
+      text-transform: uppercase;
+      font-weight: 600;
+    }
+
+    .use-cases {
+      margin: 3rem 0;
+    }
+
+    .use-cases h2 {
+      text-align: center;
+      color: var(--deep-blue-dark);
+      font-size: 2rem;
+      margin-bottom: 2rem;
+    }
+
+    .use-case-card {
+      background-color: var(--white);
+      border-radius: 16px;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+      margin-bottom: 2rem;
+      overflow: hidden;
+    }
+
+    .use-case-header {
+      background: linear-gradient(to right, var(--deep-blue), var(--deep-blue-light));
+      color: var(--white);
+      padding: 1.2rem 1.5rem;
+      font-size: 1.3rem;
+      font-weight: 600;
+    }
+
+    .use-case-content {
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+    }
+
+    .use-case-steps {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 1rem;
+      justify-content: space-around;
+    }
+
+    .step {
+      flex: 1;
+      min-width: 200px;
+      text-align: center;
+      padding: 1rem;
+      border-radius: 12px;
+      background-color: var(--gray-light);
+      box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+    }
+
+    .step-number {
+      display: inline-block;
+      width: 36px;
+      height: 36px;
+      line-height: 36px;
+      text-align: center;
+      background-color: var(--deep-blue);
+      color: white;
+      border-radius: 50%;
+      margin-bottom: 0.5rem;
+      font-weight: bold;
+    }
+
+    .about-kanchan {
+      background-color: var(--white);
+      border-radius: 16px;
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.12);
+      padding: 2rem;
+      margin: 3rem 0;
+    }
+
+    .about-kanchan h2 {
+      color: var(--deep-blue-dark);
+      font-size: 2rem;
+      margin-bottom: 1.5rem;
+      text-align: center;
+    }
+
+    .kanchan-content {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 2rem;
+      align-items: center;
+    }
+
+    .kanchan-image {
+      flex: 1;
+      min-width: 250px;
+      text-align: center;
+    }
+
+    .kanchan-image img {
+      max-width: 100%;
+      border-radius: 50%;
+      box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+    }
+
+    .kanchan-text {
+      flex: 2;
+      min-width: 300px;
+    }
+
+    .kanchan-expertise {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 0.8rem;
+      margin-top: 1.5rem;
+    }
+
+    .expertise-tag {
+      background-color: var(--mauve-light);
+      color: var(--deep-blue-dark);
+      padding: 0.5rem 1rem;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+    }
+
+    .footer {
+      text-align: center;
+      margin-top: 3rem;
+      padding: 2rem 0;
+      color: var(--white);
+      font-size: 0.9rem;
+    }
+
+    /* Chat Widget Styles */
+    .chat-container {
+      position: fixed;
+      right: 30px;
+      bottom: 30px;
+      width: 350px;
+      height: 500px;
+      background-color: var(--white);
+      border-radius: 16px;
+      box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+      display: none;
+      flex-direction: column;
+      z-index: 1000;
+    }
+
+    .chat-header {
+      background: linear-gradient(to right, var(--deep-blue), var(--deep-blue-light));
+      color: white;
+      padding: 1rem;
+      border-top-left-radius: 16px;
+      border-top-right-radius: 16px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #chat-toggle {
+      position: fixed;
+      right: 30px;
+      bottom: 30px;
+      z-index: 999;
+    }
+
+    .chat-messages {
+      flex-grow: 1;
+      overflow-y: auto;
+      padding: 1.5rem;
+      display: flex;
+      flex-direction: column;
+      gap: 1rem;
+      background-color: var(--gray-light);
+    }
+
+    .message {
+      padding: 1rem;
+      border-radius: 18px;
+      max-width: 80%;
+      line-height: 1.5;
+      position: relative;
+      animation: fadeIn 0.3s ease;
+    }
+
+    @keyframes fadeIn {
+      from {
+        opacity: 0;
+        transform: translateY(10px);
+      }
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+
+    .user-message {
+      align-self: flex-end;
+      background-color: var(--deep-blue);
+      color: white;
+      border-bottom-right-radius: 4px;
+    }
+
+    .bot-message {
+      align-self: flex-start;
+      background-color: var(--mauve-light);
+      color: var(--deep-blue-dark);
+      border-bottom-left-radius: 4px;
+    }
+
+    .chat-input {
+      padding: 1rem;
+      display: flex;
+      gap: 0.5rem;
+      background-color: white;
+      border-top: 1px solid rgba(0, 0, 0, 0.1);
+    }
+
+    #message-input {
+      flex-grow: 1;
+      padding: 0.75rem 1rem;
+      border: 2px solid #e0e0e0;
+      border-radius: 24px;
+      outline: none;
+      font-size: 1rem;
+      transition: border-color 0.3s;
+    }
+
+    #message-input:focus {
+      border-color: var(--mauve);
+    }
+
+    /* Responsive adjustments */
+    @media (max-width: 768px) {
+      .square-content {
+        flex-direction: column;
+        align-items: center;
+      }
+
+      .square-content .image {
+        margin-bottom: 1rem;
+      }
+
+      .kanchan-content {
+        flex-direction: column;
+      }
+
+      .chat-container {
+        width: 90%;
+        right: 5%;
+        left: 5%;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="container">
+    <div class="header">
+      <h1>Kanchan Ghosh's AI Appointment Bot</h1>
+      <p>Revolutionizing appointment scheduling with AI-powered voice assistants.</p>
+    </div>
+
+    <div class="about-ai">
+      <h2>Meet Sam: Your AI Appointment Assistant</h2>
+      <p>Sam is an advanced AI voice bot designed to streamline the appointment scheduling process. With natural language processing and voice recognition capabilities, Sam can handle your scheduling needs 24/7, ensuring you never miss an important meeting and reducing workload on your team.</p>
+    </div>
+
+    <!-- Call to Action Section - Prominent Placement -->
+    <div class="call-to-action">
+      <h3>Experience Sam in Action</h3>
+      <p>Enter your phone number (+447xxxxxx format only) below to receive a demonstration call from Sam</p>
+      <input type="tel" id="phone-input" class="phone-input" placeholder="Enter your phone number" required>
+      <button id="call-button" class="action-button">Call Me Now</button>
+    </div>
+
+    <!-- Use Cases Section -->
+    <div class="use-cases">
+      <h2>Practical Use Cases</h2>
+
+      <!-- Use Case 1: Customer Service -->
+      <div class="use-case-card">
+        <div class="use-case-header">Customer Service Appointment Scheduling</div>
+        <div class="use-case-content">
+          <p>Automate customer service appointment scheduling with seamless CRM integration, reducing wait times and increasing satisfaction.</p>
+          
+          <div class="square-content">
+            <div class="text">
+              <h4>Key Benefits:</h4>
+              <ul>
+                <li>Reduce call center workload by up to 40%</li>
+                <li>24/7 availability for appointment scheduling</li>
+                <li>Automatic CRM updates with new appointments</li>
+                <li>Personalized customer interactions based on history</li>
+                <li>Confirmation via SMS, email, or WhatsApp</li>
+              </ul>
+            </div>
+            <div class="image">
+              <img src="{{ url_for('template_images', filename='Leonardo_Phoenix_10_Customer_Service_Appointment_Scheduling_Im_1.jpg') }}" alt="Customer Service Appointment Scheduling" />
+            </div>
+          </div>
+          
+          <div class="use-case-steps">
+            <div class="step">
+              <div class="step-number">1</div>
+              <p>Sam calls customer from queue or answers incoming call</p>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <p>Collects appointment preferences and checks availability</p>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <p>Books appointment and sends confirmation</p>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <p>Updates CRM with appointment details</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Use Case 2: Sales Cold Calling -->
+      <div class="use-case-card">
+        <div class="use-case-header">Sales Cold Calling & Lead Qualification</div>
+        <div class="use-case-content">
+          <p>Transform your sales process with intelligent cold calling that qualifies leads before routing to your sales team.</p>
+          
+          <div class="square-content">
+            <div class="image">
+              <img src="{{ url_for('template_images', filename='Leonardo_Phoenix_10_Sales_Cold_Calling_ImageAn_artistic_topdow_2.jpg') }}" alt="Sales Cold Calling" />
+            </div>
+            <div class="text">
+              <h4>Key Benefits:</h4>
+              <ul>
+                <li>Scale outreach efforts without increasing headcount</li>
+                <li>Pre-qualify leads based on interest and budget</li>
+                <li>Instant WhatsApp follow-up with qualified leads</li>
+                <li>Performance analytics and conversion tracking</li>
+                <li>Seamless handover to human sales representatives</li>
+              </ul>
+            </div>
+          </div>
+          
+          <div class="use-case-steps">
+            <div class="step">
+              <div class="step-number">1</div>
+              <p>Sam calls leads from your database</p>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <p>Introduces your product/service and asks qualifying questions</p>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <p>Books appointment for qualified leads</p>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <p>Updates CRM with lead status and conversation notes</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Use Case 3: Healthcare Appointments -->
+      <div class="use-case-card">
+        <div class="use-case-header">Healthcare Appointment Management</div>
+        <div class="use-case-content">
+          <p>Streamline patient scheduling with HIPAA-compliant voice bot integration for medical practices and healthcare providers.</p>
+          
+          <div class="square-content">
+            <div class="text">
+              <h4>Key Benefits:</h4>
+              <ul>
+                <li>Reduce administrative burden on medical staff</li>
+                <li>Automated appointment reminders via SMS</li>
+                <li>Integration with popular EMR/EHR systems</li>
+                <li>Collect pre-appointment information securely</li>
+                <li>Manage cancellations and reschedules efficiently</li>
+              </ul>
+            </div>
+            <div class="image">
+              <img src="{{ url_for('template_images', filename='Leonardo_Phoenix_10_Healthcare_Appointment_Management_ImageA_d_3.jpg') }}" alt="Healthcare Appointment Management" />
+            </div>
+          </div>
+          
+          <div class="use-case-steps">
+            <div class="step">
+              <div class="step-number">1</div>
+              <p>Patient calls or receives proactive scheduling call</p>
+            </div>
+            <div class="step">
+              <div class="step-number">2</div>
+              <p>Sam verifies identity and accesses medical records</p>
+            </div>
+            <div class="step">
+              <div class="step-number">3</div>
+              <p>Schedules appointment and collects information</p>
+            </div>
+            <div class="step">
+              <div class="step-number">4</div>
+              <p>Sends confirmation and reminder via preferred channel</p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="squares-container">
+      <div class="square">
+        <div class="square-content">
+          <div class="text">
+            <h3>Why AI is Revolutionizing Business</h3>
+            <p>AI technology is not just about automation; it's about providing businesses with intelligent tools to make more informed decisions. Sam's natural language processing capabilities enable faster, more accurate customer service and appointment scheduling without human intervention.</p>
+          </div>
+          <div class="image">
+            <img src="{{ url_for('template_images', filename='Leonardo_Phoenix_10_AI_Business_Revolution_ImageA_miniature_ci_2.jpg') }}" alt="AI Business Revolution" />
+          </div>
+        </div>
+      </div>
+
+      <div class="square">
+        <div class="square-content">
+          <div class="image">
+            <img src="{{ url_for('template_images', filename='Leonardo_Phoenix_10_AI_Customer_Support_ImageA_surreal_composi_0.jpg') }}" alt="AI Customer Support" />
+          </div>
+          <div class="text">
+            <h3>AI and Customer Support</h3>
+            <p>AI-driven voice bots like Sam are transforming customer service. From handling routine inquiries to managing complex scheduling requirements, Sam ensures a seamless customer experience while integrating with your existing tools and workflows.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- About Kanchan Section -->
+    <div class="about-kanchan">
+      <h2>About Kanchan Ghosh</h2>
+      <div class="kanchan-content">
+        <div class="kanchan-image">
+          <img src="{{ url_for('template_images', filename='Screenshot 2024-03-25 143332.png') }}" alt="Kanchan Ghosh" />
+        </div>
+        <div class="kanchan-text">
+          <h3>Versatile Tech Professional & AI Specialist</h3>
+          <p>Kanchan Ghosh is a skilled professional with expertise in Social Media Marketing, AI development, and business growth. With a strong background in technology and marketing, Kanchan has successfully delivered numerous projects for clients across various industries.</p>
+          
+          <p>As an AI specialist, Kanchan has developed and implemented voice bot solutions that have helped businesses streamline operations, enhance customer experience, and drive growth. His approach combines technical expertise with business acumen to deliver solutions that address real-world challenges.</p>
+          
+          <h4>Project Delivery Excellence:</h4>
+          <ul>
+            <li>Developed and deployed AI voice bots for multiple industries including healthcare and retail</li>
+            <li>Secured new clients through targeted social media campaigns, including a partnership with SyncMinds Technologies</li>
+            <li>Successfully delivered web development projects generated through LinkedIn and Facebook marketing</li>
+            <li>Specialized in chatbot development and natural language processing</li>
+          </ul>
+          
+          <div class="kanchan-expertise">
+            <span class="expertise-tag">AI Development</span>
+            <span class="expertise-tag">Voice Bot Integration</span>
+            <span class="expertise-tag">Social Media Marketing</span>
+            <span class="expertise-tag">Business Development</span>
+            <span class="expertise-tag">CRM Integration</span>
+            <span class="expertise-tag">Web Development</span>
+          </div>
+        </div>
+      </div>
+    </div>
+</body>
+
+    <div class="footer">
+      &copy; 2025 Kanchan Ghosh. All rights reserved. | Powered by AI Technology
+    </div>
+  </div>
+
+  <button id="chat-toggle" class="action-button">💬 Chat with Sam</button>
+  <div class="chat-container">
+    <div class="chat-header">
+      <h3>Chat with Sam</h3>
+      <button id="close-chat" class="action-button" style="padding: 0.4rem 0.8rem; font-size: 0.9rem;">✖</button>
+    </div>
+    <div class="chat-messages" id="chat-messages">
+      <div class="message bot-message">
+        Hello! I'm Sam, your AI appointment assistant. How can I assist you today?
+      </div>
+    </div>
+    <div class="chat-input">
+      <input type="text" id="message-input" placeholder="Type your message here...">
+      <button id="send-button" class="action-button">Send</button>
+    </div>
+  </div>
+
+  <script>
+let sessionId = Date.now().toString();
+
+document.getElementById('send-button').addEventListener('click', sendMessage);
+document.getElementById('message-input').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') sendMessage();
+});
+
+const chatContainer = document.querySelector('.chat-container');
+const chatToggle = document.getElementById('chat-toggle');
+const closeChatButton = document.getElementById('close-chat');
+
+// Open/Close Chat Window Toggle
+chatToggle.addEventListener('click', () => {
+    chatContainer.style.display = 'flex';
+    chatToggle.style.display = 'none';
+});
+
+// Close Chat Window Button
+closeChatButton.addEventListener('click', () => {
+    chatContainer.style.display = 'none';
+    chatToggle.style.display = 'block';
+});
+
+function sendMessage() {
+    const messageInput = document.getElementById('message-input');
+    const message = messageInput.value.trim();
+    if (!message) return;
+
+    addMessage(message, 'user');
+    messageInput.value = '';
+
+    fetch('/chat', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message: message, sessionId: sessionId })
+    })
+    .then(response => response.json())
+    .then(data => {
+        addMessage(data.response, 'bot');
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        addMessage("I'm sorry, there was an error processing your request.", 'bot');
+    });
+}
+
+function addMessage(content, sender) {
+    const messagesContainer = document.getElementById('chat-messages');
+    const messageElement = document.createElement('div');
+    messageElement.classList.add('message');
+    messageElement.classList.add(sender === 'user' ? 'user-message' : 'bot-message');
+    messageElement.innerHTML = content;
+    messagesContainer.appendChild(messageElement);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
+// Handle phone call functionality
+document.getElementById('call-button').addEventListener('click', function() {
+    const phoneNumber = document.getElementById('phone-input').value.trim();
+    if (phoneNumber) {
+        fetch('/call', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ phone_number: phoneNumber })
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                const notification = document.createElement('div');
+                notification.textContent = 'Thank you! Sam will call you shortly at ' + phoneNumber;
+                notification.style.position = 'fixed';
+                notification.style.top = '20px';
+                notification.style.left = '50%';
+                notification.style.transform = 'translateX(-50%)';
+                notification.style.backgroundColor = '#4CAF50';
+                notification.style.color = 'white';
+                notification.style.padding = '12px 24px';
+                notification.style.borderRadius = '8px';
+                notification.style.zIndex = '1001';
+                notification.style.boxShadow = '0 4px 8px rgba(0,0,0,0.2)';
+                document.body.appendChild(notification);
+
+                document.getElementById('phone-input').value = '';
+                setTimeout(() => {
+                    document.body.removeChild(notification);
+                }, 5000);
+            } else {
+                alert(data.error || 'There was an error initiating the call.'); // Display error message from the server
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            alert('There was an error initiating the call.');
+        });
+    } else {
+        alert('Please enter a valid phone number.');
+    }
+});
+  </script>
+</body>
+</html>

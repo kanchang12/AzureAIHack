@@ -187,10 +187,10 @@ def handle_conversation():
     
     response = VoiceResponse()
     
-    if call_sid:
-        if call_sid + "_count" not in conversation_history:
-            conversation_history[call_sid + "_count"] = 0
-        conversation_history[call_sid + "_count"] += 1
+    #if call_sid:
+    #    if call_sid + "_count" not in conversation_history:
+     #       conversation_history[call_sid + "_count"] = 0
+     #   conversation_history[call_sid + "_count"] += 1
     
     # Handle hang up
     if digits == '9' or any(word in user_speech.lower() for word in ['goodbye', 'bye', 'hang up', 'end call']):
@@ -204,7 +204,7 @@ def handle_conversation():
     try:
         input_text = user_speech or (f"Button {digits} pressed" if digits else "Hello")
         
-        if call_sid and call_sid + "_count" in conversation_history:
+        """if call_sid and call_sid + "_count" in conversation_history:
             conversation_history[call_sid + "_count"] += 1
         
         # Check if we've reached 5 interactions
@@ -238,7 +238,7 @@ def handle_conversation():
             response.pause(length=20)
             response.hangup()
             return str(response)
-        
+        """
         ai_response = get_ai_response(input_text, call_sid)
         
         # SMS handling for appointments

@@ -122,31 +122,65 @@ def chat():
 
 @app.route('/call', methods=['POST'])
 def make_call():
+    import traceback
+    
     request_start_time = time.time() * 1000
     
     phone_number = request.json.get('phone_number')
     if not phone_number:
+        logging.error("Call failed: No phone number provided")
         return jsonify({"error": "No phone number provided"}), 400
     
     try:
-        call = twilio_client.calls.create(
-            to=phone_number,
-            from_=TWILIO_PHONE_NUMBER,
-            url=f"{request.url_root}twiml",
-            machine_detection='Enable',
-            async_amd=True
-        )
+        # Validate inputs and environment variables
+        if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER:
+            logging.error("Call failed: Missing Twilio credentials")
+            return jsonify({"error": "Twilio configuration incomplete"}), 500
         
+        # Log the attempt with masked credentials for security
+        logging.info(f"Attempting to call: {phone_number}")
+        logging.info(f"Using Twilio number: {TWILIO_PHONE_NUMBER}")
+        logging.info(f"URL for TwiML: {request.url_root}twiml")
+        
+        # Create the call with additional logging
+        try:
+            call = twilio_client.calls.create(
+                to=phone_number,
+                from_=TWILIO_PHONE_NUMBER,
+                url=f"{request.url_root}twiml",
+                machine_detection='Enable',
+                async_amd=True
+            )
+            logging.info(f"Call successfully initiated with SID: {call.sid}")
+        except Exception as twilio_err:
+            logging.error(f"Twilio API error: {str(twilio_err)}")
+            logging.error(traceback.format_exc())
+            return jsonify({"error": f"Twilio API error: {str(twilio_err)}"}), 500
+        
+        # Initialize conversation history for this call
         conversation_history[call.sid] = []
         
+        # Track performance metrics
         total_time = time.time() * 1000 - request_start_time
         track_performance("total_request_time", total_time)
         
         return jsonify({"success": True, "call_sid": call.sid})
     
     except Exception as e:
-        logging.error(f"Error making call: {e}")
-        return jsonify({"error": "Failed to initiate call. Please try again."}), 500
+        # Detailed logging of the exception
+        logging.error(f"Unexpected error in make_call: {str(e)}")
+        logging.error(traceback.format_exc())
+        
+        # Check for specific error types
+        error_message = str(e).lower()
+        if "authentication" in error_message or "auth" in error_message:
+            return jsonify({"error": "Authentication failed with Twilio. Please check credentials."}), 401
+        elif "rate" in error_message and "limit" in error_message:
+            return jsonify({"error": "Rate limit exceeded. Please try again later."}), 429
+        elif "not found" in error_message or "404" in error_message:
+            return jsonify({"error": "Resource not found. Please check configuration."}), 404
+        else:
+            return jsonify({"error": f"Failed to initiate call: {str(e)}"}), 500
 
 @app.route('/twiml', methods=['POST'])
 def twiml_response():
@@ -267,55 +301,94 @@ def handle_conversation():
         return str(response)
 
 def get_ai_response(user_input, call_sid=None, web_session_id=None):
+    import traceback
+    
     start_time = time.time() * 1000
     
-    # Get conversation history from appropriate source
-    conversation_context = ""
-    if call_sid and call_sid in conversation_history:
-        conversation_context = "\n".join([
-            f"User: {msg['user']}\nAssistant: {msg['assistant']}"
-            for msg in conversation_history[call_sid]
-        ])
-    elif web_session_id and web_session_id in web_chat_sessions:
-        conversation_context = "\n".join([
-            f"User: {msg['user']}\nAssistant: {msg['assistant']}"
-            for msg in web_chat_sessions[web_session_id]
-        ])
-    
-    prompt = (
-        "You are Sam, the personal appointment setter for Kanchan Ghosh. He is a male (He/him/his) Kanchan is an AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot technology. "
-        "## Conversation Guidelines:\n"
-        "- Start with a warm and friendly greeting.\n"
-        "- Introduce Kanchan briefly: 'Kanchan is an experienced AI developer specializing in voice bot technology.'\n"
-        "- Engage users in light conversation before smoothly transitioning into discussing business needs.\n"
-        "- If the user expresses interest in AI solutions or business collaboration, suggest scheduling a meeting.\n"
-        "- When offering a meeting, provide this Calendly link: [Calendly Link]\n"
-        "- If needed, guide users to more information on Kanchan's website: www.ikanchan.com.\n"
-        "- Keep responses **clear, concise, and focused**.\n\n"
-        "### CONVERSATION HISTORY:\n"
-        f"{conversation_context}\n\n"
-        "### CURRENT USER MESSAGE:\n"
-        f"{user_input}\n\n"
-        "Remember: Be friendly, professional, and guide users to set up a meeting when appropriate.\n"
-    )
-
     try:
+        # Validate that OpenAI credentials are present
+        if not AZURE_OPENAI_API_KEY or not AZURE_OPENAI_ENDPOINT:
+            logging.error("Missing OpenAI API credentials")
+            return {
+                "response": "I apologize, but our AI service is not configured correctly. Please contact support.",
+                "suggested_appointment": False
+            }
+        
+        # Get conversation history from appropriate source
+        conversation_context = ""
+        if call_sid and call_sid in conversation_history:
+            conversation_context = "\n".join([
+                f"User: {msg['user']}\nAssistant: {msg['assistant']}"
+                for msg in conversation_history[call_sid]
+            ])
+            logging.debug(f"Using call history for SID: {call_sid}, messages: {len(conversation_history[call_sid])}")
+        elif web_session_id and web_session_id in web_chat_sessions:
+            conversation_context = "\n".join([
+                f"User: {msg['user']}\nAssistant: {msg['assistant']}"
+                for msg in web_chat_sessions[web_session_id]
+            ])
+            logging.debug(f"Using web session history for ID: {web_session_id}, messages: {len(web_chat_sessions[web_session_id])}")
+        else:
+            logging.debug("No existing conversation history found - starting fresh")
+        
+        # Construct the prompt
+        prompt = (
+            "You are Sam, the personal appointment setter for Kanchan Ghosh. He is a male (He/him/his) Kanchan is an AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot technology. "
+            "## Conversation Guidelines:\n"
+            "- Start with a warm and friendly greeting.\n"
+            "- Introduce Kanchan briefly: 'Kanchan is an experienced AI developer specializing in voice bot technology.'\n"
+            "- Engage users in light conversation before smoothly transitioning into discussing business needs.\n"
+            "- If the user expresses interest in AI solutions or business collaboration, suggest scheduling a meeting.\n"
+            "- When offering a meeting, provide this Calendly link: [Calendly Link]\n"
+            "- If needed, guide users to more information on Kanchan's website: www.ikanchan.com.\n"
+            "- Keep responses **clear, concise, and focused**.\n\n"
+            "### CONVERSATION HISTORY:\n"
+            f"{conversation_context}\n\n"
+            "### CURRENT USER MESSAGE:\n"
+            f"{user_input}\n\n"
+            "Remember: Be friendly, professional, and guide users to set up a meeting when appropriate.\n"
+        )
+
+        # Make the OpenAI API call with proper error handling
         ai_start_time = time.time() * 1000
         
-        completion = openai_client.chat.completions.create(
-            model='gpt-35-turbo',
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": user_input}
-            ],
-            max_tokens=150,
-            temperature=0.7
-        )
+        try:
+            logging.debug(f"Sending request to OpenAI. User input: '{user_input}'")
+            completion = openai_client.chat.completions.create(
+                model='gpt-35-turbo',
+                messages=[
+                    {"role": "system", "content": prompt},
+                    {"role": "user", "content": user_input}
+                ],
+                max_tokens=150,
+                temperature=0.7
+            )
+            
+            ai_time = time.time() * 1000 - ai_start_time
+            track_performance("ai_response", ai_time)
+            
+            response_text = completion.choices[0].message.content.strip()
+            logging.debug(f"Received response from OpenAI: '{response_text}'")
+            
+        except Exception as openai_err:
+            logging.error(f"OpenAI API error: {str(openai_err)}")
+            logging.error(traceback.format_exc())
+            
+            # Check for common OpenAI errors
+            error_message = str(openai_err).lower()
+            if "rate" in error_message and "limit" in error_message:
+                response_text = "I'm very sorry, but our AI service is experiencing high demand. Could we try again in a moment?"
+            elif "token" in error_message or "auth" in error_message:
+                response_text = "I apologize, but I'm having trouble connecting to our AI service. Please try again later."
+            else:
+                response_text = "I apologize, but I'm having trouble processing your request. Could you please try again?"
+            
+            return {
+                "response": response_text,
+                "suggested_appointment": False
+            }
         
-        ai_time = time.time() * 1000 - ai_start_time
-        track_performance("ai_response", ai_time)
-        
-        response_text = completion.choices[0].message.content.strip()
+        # Process the response
         suggested_appointment = "[Appointment Suggested]" in response_text
         response_text = response_text.replace("[Appointment Suggested]", "")
         
@@ -333,6 +406,9 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             # Limit conversation history size
             if len(conversation_history[call_sid]) > 10:
                 conversation_history[call_sid] = conversation_history[call_sid][-10:]
+                
+            logging.debug(f"Updated call history for SID: {call_sid}, now has {len(conversation_history[call_sid])} messages")
+                
         elif web_session_id:
             web_chat_sessions[web_session_id].append({
                 "user": user_input,
@@ -343,6 +419,8 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             # Limit web session history size
             if len(web_chat_sessions[web_session_id]) > 10:
                 web_chat_sessions[web_session_id] = web_chat_sessions[web_session_id][-10:]
+                
+            logging.debug(f"Updated web session for ID: {web_session_id}, now has {len(web_chat_sessions[web_session_id])} messages")
         
         total_time = time.time() * 1000 - start_time
         track_performance("get_ai_response", total_time)
@@ -353,7 +431,8 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         }
     
     except Exception as e:
-        logging.error(f"Error in get_ai_response: {e}")
+        logging.error(f"Unexpected error in get_ai_response: {str(e)}")
+        logging.error(traceback.format_exc())
         
         error_time = time.time() * 1000 - start_time
         track_performance("get_ai_response", error_time)
@@ -362,7 +441,6 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             "response": "I apologize, but I'm having trouble processing your request. Could you please try again?",
             "suggested_appointment": False
         }
-
 # Session cleanup - remove inactive web sessions after 30 minutes
 def cleanup_sessions():
     while True:

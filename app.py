@@ -7,6 +7,10 @@ from twilio.rest import Client
 from openai import AzureOpenAI
 import time
 import threading
+import logging
+
+# Configure logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(levelname)s %(message)s')
 
 app = Flask(__name__, static_url_path='')
 
@@ -50,10 +54,10 @@ def track_performance(category, execution_time):
     
     # Calculate average time
     avg = sum(performance_metrics[category]) / len(performance_metrics[category])
-    print(f"[PERFORMANCE] {category}: {execution_time:.2f}ms (Avg: {avg:.2f}ms)")
+    logging.info(f"[PERFORMANCE] {category}: {execution_time:.2f}ms (Avg: {avg:.2f}ms)")
 
 def print_performance_metrics():
-    print("\n===== PERFORMANCE METRICS =====")
+    logging.info("\n===== PERFORMANCE METRICS =====")
     for category, times in performance_metrics.items():
         if not times:
             continue
@@ -63,8 +67,8 @@ def print_performance_metrics():
         max_time = max(times)
         last = times[-1]
         
-        print(f"{category}: Last={last:.2f}ms, Avg={avg:.2f}ms, Min={min_time:.2f}ms, Max={max_time:.2f}ms, Count={len(times)}")
-    print("===============================\n")
+        logging.info(f"{category}: Last={last:.2f}ms, Avg={avg:.2f}ms, Min={min_time:.2f}ms, Max={max_time:.2f}ms, Count={len(times)}")
+    logging.info("===============================\n")
 
 # Routes
 @app.route('/')
@@ -110,7 +114,7 @@ def chat():
         return jsonify(result)
     
     except Exception as e:
-        print(f"Error in /chat: {e}")
+        logging.error(f"Error in /chat: {e}")
         return jsonify({
             "response": "I apologize, but I'm experiencing technical difficulties. Could you please try again?",
             "suggested_appointment": False
@@ -141,7 +145,7 @@ def make_call():
         return jsonify({"success": True, "call_sid": call.sid})
     
     except Exception as e:
-        print(f"Error making call: {e}")
+        logging.error(f"Error making call: {e}")
         return jsonify({"error": "Failed to initiate call. Please try again."}), 500
 
 @app.route('/twiml', methods=['POST'])
@@ -149,7 +153,7 @@ def twiml_response():
     response = VoiceResponse()
     call_sid = request.form.get('CallSid')
     machine_result = request.form.get('AnsweredBy')
-    
+
     # If answering machine is detected, leave a voicemail
     if machine_result == 'machine_start':
         response.say(
@@ -168,7 +172,7 @@ def twiml_response():
     )
     
     gather.say(
-        ".                                                                                                                   .                                                                  .Hello, this is Sam, I hope you're doing well. I am calling to check if you are looking for an automated AI agent for your business",
+        "Hello, this is Sam, Kanchan Ghosh's appointment assistant. How can I assist you today?",
         voice='Polly.Matthew-Neural'
     )
     
@@ -187,11 +191,6 @@ def handle_conversation():
     
     response = VoiceResponse()
     
-    #if call_sid:
-    #    if call_sid + "_count" not in conversation_history:
-     #       conversation_history[call_sid + "_count"] = 0
-     #   conversation_history[call_sid + "_count"] += 1
-    
     # Handle hang up
     if digits == '9' or any(word in user_speech.lower() for word in ['goodbye', 'bye', 'hang up', 'end call']):
         response.say(
@@ -204,41 +203,6 @@ def handle_conversation():
     try:
         input_text = user_speech or (f"Button {digits} pressed" if digits else "Hello")
         
-        """if call_sid and call_sid + "_count" in conversation_history:
-            conversation_history[call_sid + "_count"] += 1
-        
-        # Check if we've reached 5 interactions
-        if conversation_history[call_sid + "_count"] >= 5:
-            response.say(
-                "Thank you for your time. To ensure this free demo remains within budget, "
-                "this call will be disconnected in 20 seconds. I've sent a Calendly link to your phone "
-                "so you can book an appointment for further discussion with Kanchan.",
-                voice='Polly.Matthew-Neural'
-            )
-            
-            # Send SMS with Calendly link
-            try:
-                call = twilio_client.calls(call_sid).fetch()
-                phone_number = call.to
-                
-                sms_body = (
-                    "Thank you for trying Sam, Kanchan Ghosh's appointment assistant. "
-                    f"To continue your conversation, please schedule a meeting: {CALENDLY_LINK}. "
-                    "For more information, visit www.ikanchan.com."
-                )
-                
-                twilio_client.messages.create(
-                    body=sms_body,
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=phone_number
-                )
-            except Exception as e:
-                print(f"Error sending SMS: {e}")
-            
-            response.pause(length=20)
-            response.hangup()
-            return str(response)
-        """
         ai_response = get_ai_response(input_text, call_sid)
         
         # SMS handling for appointments
@@ -259,11 +223,11 @@ def handle_conversation():
                     from_=TWILIO_PHONE_NUMBER,
                     to=phone_number
                 )
-                print(f"SMS sent successfully to {phone_number}")
+                logging.info(f"SMS sent successfully to {phone_number}")
                 
                 ai_response["response"] += " I've sent you an SMS with the booking link."
             except Exception as e:
-                print(f"Error sending SMS: {e}")
+                logging.error(f"Error sending SMS: {e}")
         
         gather = Gather(
             input='speech dtmf',
@@ -285,9 +249,9 @@ def handle_conversation():
         response.pause(length=1)
         response.append(gather)
         
-        print(f"Call SID: {call_sid}")
-        print(f"User: {input_text}")
-        print(f"Assistant: {response_text}")
+        logging.info(f"Call SID: {call_sid}")
+        logging.info(f"User: {input_text}")
+        logging.info(f"Assistant: {response_text}")
         
         total_time = time.time() * 1000 - request_start_time
         track_performance("total_request_time", total_time)
@@ -295,7 +259,7 @@ def handle_conversation():
         return str(response)
     
     except Exception as e:
-        print(f"Error in /conversation: {e}")
+        logging.error(f"Error in /conversation: {e}")
         response.say(
             "I'm experiencing technical difficulties. Please try again later.",
             voice='Polly.Matthew-Neural'
@@ -319,7 +283,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         ])
     
     prompt = (
-        "You are Sam, the personal appointment setter for Kanchan Ghosh. He is a male (He/him/his) Kanchan is an AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot development. Your role is to professionally and politely assist users in setting up meetings with Kanchan.\n\n"
+        "You are Sam, the personal appointment setter for Kanchan Ghosh. He is a male (He/him/his) Kanchan is an AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot technology. "
         "## Conversation Guidelines:\n"
         "- Start with a warm and friendly greeting.\n"
         "- Introduce Kanchan briefly: 'Kanchan is an experienced AI developer specializing in voice bot technology.'\n"
@@ -389,7 +353,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         }
     
     except Exception as e:
-        print(f"Error in get_ai_response: {e}")
+        logging.error(f"Error in get_ai_response: {e}")
         
         error_time = time.time() * 1000 - start_time
         track_performance("get_ai_response", error_time)
@@ -409,11 +373,11 @@ def cleanup_sessions():
                     last_message_time = history[-1].get("timestamp", 0)
                     if now - last_message_time > 30 * 60 * 1000:  # 30 minutes
                         del web_chat_sessions[session_id]
-                        print(f"Removed inactive web session: {session_id}")
+                        logging.info(f"Removed inactive web session: {session_id}")
             # Sleep for 10 minutes before the next cleanup
             time.sleep(600)
         except Exception as e:
-            print(f"Error in cleanup_sessions: {e}")
+            logging.error(f"Error in cleanup_sessions: {e}")
             time.sleep(600)  # If error, still sleep before retrying
 
 def metrics_reporter():
@@ -422,7 +386,7 @@ def metrics_reporter():
             print_performance_metrics()
             time.sleep(60)  # Print metrics every minute
         except Exception as e:
-            print(f"Error in metrics_reporter: {e}")
+            logging.error(f"Error in metrics_reporter: {e}")
             time.sleep(60)  # If error, still sleep before retrying
 
 if __name__ == '__main__':

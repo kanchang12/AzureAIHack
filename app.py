@@ -157,7 +157,7 @@ def twiml_response():
             voice='Polly.Matthew-Neural')
         response.hangup()
         return str(response)
-    
+    response.pause(length=1)
     gather = Gather(
         input='speech dtmf',
         action='/conversation',
@@ -308,43 +308,42 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     # Get conversation history from appropriate source
     conversation_context = ""
     if call_sid and call_sid in conversation_history:
-        conversation_context = "\n".join([
+        conversation_context = "\n".join([  # Formatted history for call
             f"User: {msg['user']}\nAssistant: {msg['assistant']}"
             for msg in conversation_history[call_sid]
         ])
     elif web_session_id and web_session_id in web_chat_sessions:
-        conversation_context = "\n".join([
+        conversation_context = "\n".join([  # Formatted history for web chat
             f"User: {msg['user']}\nAssistant: {msg['assistant']}"
             for msg in web_chat_sessions[web_session_id]
         ])
     
     prompt = (
-        "You are Sam, the personal appointment setter for Kanchan Ghosh. He is a male (He/him/his) Kanchan is an AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot development. Your role is to professionally and politely assist users in setting up meetings with Kanchan.\n\n"
-        "## Conversation Guidelines:\n"
-        "- Start with a warm and friendly greeting.\n"
-        "- Introduce Kanchan briefly: 'Kanchan is an experienced AI developer specializing in voice bot technology.'\n"
-        "- Engage users in light conversation before smoothly transitioning into discussing business needs.\n"
-        "- If the user expresses interest in AI solutions or business collaboration, suggest scheduling a meeting.\n"
-        "- When offering a meeting, provide this Calendly link: [Calendly Link]\n"
-        "- If needed, guide users to more information on Kanchan's website: www.ikanchan.com.\n"
-        "- Keep responses **clear, concise, and focused**.\n\n"
+        "You are Sam, the personal assistant for Kanchan Ghosh. Kanchan is an experienced AI developer with 17 years in the field, specializing in voice bot technology. Your task is to engage users in a friendly and helpful manner and assist them in setting up meetings with Kanchan, but only after understanding their needs.\n\n"
+        "### Conversation Guidelines:\n"
+        "- Engage users with a friendly, polite, and professional tone.\n"
+        "- Do not repeat the same phrases or introductions unnecessarily.\n"
+        "- Begin with relevant small talk or context-specific responses.\n"
+        "- Answer questions directly and naturally without over-explaining.\n"
+        "- Only suggest scheduling a meeting once the conversation has evolved to that point, not immediately.\n"
+        "- If the user asks for Kanchan’s expertise in AI or business, suggest a meeting link (Calendly).\n"
+        "- If the user expresses disinterest, don’t push for a meeting.\n\n"
         "### CONVERSATION HISTORY:\n"
         f"{conversation_context}\n\n"
         "### CURRENT USER MESSAGE:\n"
         f"{user_input}\n\n"
-        "Remember: Be friendly, professional, and guide users to set up a meeting when appropriate.\n"
+        "Assistant: "
     )
 
     try:
         ai_start_time = time.time() * 1000
         
+        # Call OpenAI for a response
         completion = openai_client.chat.completions.create(
             model='gpt-35-turbo',
-            messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": user_input}
-            ],
-            max_tokens=150,
+            messages=[{"role": "system", "content": prompt},
+                      {"role": "user", "content": user_input}],
+            max_tokens=200,  # Increased token limit for better responses
             temperature=0.7
         )
         
@@ -352,6 +351,8 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         track_performance("ai_response", ai_time)
         
         response_text = completion.choices[0].message.content.strip()
+        
+        # Check if AI suggests scheduling a meeting and clean the response
         suggested_appointment = "[Appointment Suggested]" in response_text
         response_text = response_text.replace("[Appointment Suggested]", "")
         
@@ -359,7 +360,6 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         if call_sid:
             if call_sid not in conversation_history:
                 conversation_history[call_sid] = []
-                
             conversation_history[call_sid].append({
                 "user": user_input,
                 "assistant": response_text,
@@ -370,6 +370,8 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             if len(conversation_history[call_sid]) > 10:
                 conversation_history[call_sid] = conversation_history[call_sid][-10:]
         elif web_session_id:
+            if web_session_id not in web_chat_sessions:
+                web_chat_sessions[web_session_id] = []
             web_chat_sessions[web_session_id].append({
                 "user": user_input,
                 "assistant": response_text,

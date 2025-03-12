@@ -257,10 +257,7 @@ def twiml_response():
     
     return str(response)
 
-import time
-import re
-from flask import request
-from twilio.twiml.voice_response import VoiceResponse, Gather
+
 
 @app.route('/conversation', methods=['POST'])
 def handle_conversation():

@@ -33,6 +33,7 @@ TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
 CALENDLY_LINK = "https://calendly.com/kanchan-g12/let-s-connect-30-minute-exploratory-call"
+WEBSITE_URL = "www.ikanchan.com"
 
 # Log configuration details (without sensitive info)
 logger.info("Starting Sam Appointment Application")
@@ -81,6 +82,16 @@ except Exception as e:
 # Store conversation histories
 conversation_history = {}
 web_chat_sessions = {}
+
+# Call statistics for analytics
+call_statistics = {
+    "total_calls": 0,
+    "successful_calls": 0,
+    "answering_machines": 0,
+    "no_answer": 0,
+    "appointments_suggested": 0,
+    "avg_call_duration": 0
+}
 
 # Performance tracking
 performance_metrics = {
@@ -191,14 +202,22 @@ def make_call():
         # Construct the full URL for the TwiML endpoint
         host = request.host_url.rstrip('/')
         twiml_url = f"{host}/twiml"
+        status_callback_url = f"{host}/call-status"
         logger.info(f"TwiML URL for call: {twiml_url}")
+        logger.info(f"Status callback URL: {status_callback_url}")
+        
+        # Update call statistics
+        call_statistics["total_calls"] += 1
         
         call = twilio_client.calls.create(
             to=phone_number,
             from_=TWILIO_PHONE_NUMBER,
             url=twiml_url,
             machine_detection='Enable',
-            async_amd=True
+            async_amd=True,
+            status_callback=status_callback_url,
+            status_callback_event=['initiated', 'ringing', 'answered', 'completed'],
+            timeout=30  # Add a 30-second timeout to avoid long waits
         )
         
         logger.info(f"Call initiated successfully. SID: {call.sid}")
@@ -213,6 +232,46 @@ def make_call():
         logger.error(f"Error making call: {e}", exc_info=True)
         return jsonify({"error": "Failed to initiate call. Please try again."}), 500
 
+@app.route('/call-status', methods=['POST'])
+def call_status():
+    call_sid = request.form.get('CallSid')
+    call_status = request.form.get('CallStatus')
+    call_duration = request.form.get('CallDuration')
+    answered_by = request.form.get('AnsweredBy')
+    
+    logger.info(f"Call status update: SID={call_sid}, Status={call_status}, Duration={call_duration}s, AnsweredBy={answered_by}")
+    
+    # Handle different call statuses for analytics
+    if call_status == 'completed':
+        logger.info(f"Call completed: SID={call_sid}, Duration={call_duration}s")
+        
+        # Update call statistics
+        if answered_by == 'human':
+            call_statistics["successful_calls"] += 1
+        elif answered_by in ['machine_start', 'machine']:
+            call_statistics["answering_machines"] += 1
+        
+        # Update average call duration
+        call_statistics["avg_call_duration"] = (
+            (call_statistics["avg_call_duration"] * (call_statistics["successful_calls"] - 1) +
+             float(call_duration or 0)) / call_statistics["successful_calls"]
+            if call_statistics["successful_calls"] > 0 else 0
+        )
+        
+        # Archive conversation history
+        if call_sid in conversation_history:
+            conversation_history[f"{call_sid}_completed"] = {
+                "history": conversation_history[call_sid],
+                "completed_at": time.time() * 1000,
+                "duration": call_duration,
+                "answered_by": answered_by
+            }
+    
+    elif call_status == 'no-answer':
+        call_statistics["no_answer"] += 1
+    
+    return '', 204
+
 @app.route('/twiml', methods=['GET', 'POST'])
 def twiml_response():
     call_sid = request.form.get('CallSid')
@@ -224,10 +283,12 @@ def twiml_response():
     response = VoiceResponse()
     
     # If answering machine is detected, leave a voicemail
-    if machine_result == 'machine_start':
+    if machine_result == 'machine_start' or machine_result == 'machine':
         logger.info("Answering machine detected, leaving voicemail")
+        response.pause(length=1)  # Wait for the beep
         response.say(
-            "Hello, this is Sam, I hope you're doing well. I am calling to check if you are looking for an automated AI agent for your business",
+            "Hello, this is Sam calling on behalf of Kanchan Ghosh. I wanted to check if you're looking for an automated AI agent for your business. "
+            f"If you're interested, please visit {WEBSITE_URL} or call this number back at your convenience. Thank you!",
             voice='Polly.Matthew-Neural')
         response.hangup()
         return str(response)
@@ -236,27 +297,58 @@ def twiml_response():
         input='speech dtmf',
         action='/conversation',
         method='POST',
-        timeout=3,
+        timeout=5,
         speech_timeout='auto',
         barge_in=True
     )
     
-    # Added pauses at the start to allow the connection to stabilize
+    # Use a clean, simple greeting with a short pause at the start for connection stability
+    response.pause(length=0.5)
     gather.say(
-        ".                                                                                                                   .                                                                  .Hello, this is Sam, I hope you're doing well. I am calling to check if you are looking for an automated AI agent for your business",
+        "Hello, this is Sam calling on behalf of Kanchan Ghosh. I'm reaching out to see if you're looking for an automated AI agent for your business.",
         voice='Polly.Matthew-Neural'
     )
     
     response.append(gather)
     
- 
+    # Add fallback for no input
+    response.redirect('/fallback', method='POST')
     
     logger.info("TwiML response generated successfully")
     logger.debug(f"TwiML response: {str(response)}")
     
     return str(response)
 
-
+@app.route('/fallback', methods=['POST'])
+def fallback():
+    call_sid = request.form.get('CallSid')
+    logger.info(f"Fallback triggered for call SID: {call_sid}")
+    
+    response = VoiceResponse()
+    gather = Gather(
+        input='speech dtmf',
+        action='/conversation',
+        method='POST',
+        timeout=5,
+        speech_timeout='auto',
+        barge_in=True
+    )
+    
+    gather.say(
+        "I didn't hear a response. If you're interested in learning about AI solutions for your business, please say 'yes' or press any key.",
+        voice='Polly.Matthew-Neural'
+    )
+    
+    response.append(gather)
+    
+    # Second fallback - if still no response, gracefully end the call
+    response.say(
+        f"Sorry we couldn't connect. Please visit {WEBSITE_URL} or call back later if you're interested in AI solutions for your business. Thank you!",
+        voice='Polly.Matthew-Neural'
+    )
+    response.hangup()
+    
+    return str(response)
 
 @app.route('/conversation', methods=['POST'])
 def handle_conversation():
@@ -276,7 +368,7 @@ def handle_conversation():
     if digits == '9' or any(word in user_speech.lower() for word in ['goodbye', 'bye', 'hang up', 'end call']):
         logger.info("User requested to end the call")
         response.say(
-            "Thank you for your time. If you'd like to schedule an appointment later, you can visit our website. Have a great day!",
+            f"Thank you for your time. If you'd like to schedule an appointment later, you can visit {WEBSITE_URL}. Have a great day!",
             voice='Polly.Matthew-Neural'
         )
         response.hangup()
@@ -296,11 +388,14 @@ def handle_conversation():
                 phone_number = call.to
                 logger.info(f"Appointment suggested. Sending SMS to {phone_number[:6]}****")
                 
+                # Update statistics
+                call_statistics["appointments_suggested"] += 1
+                
                 sms_body = (
                     "Hello! This is Sam, Kanchan Ghosh's appointment assistant. "
                     "Kanchan is an AI developer with 17 years of experience, specializing in voice bot technology. "
                     f"You can schedule a meeting with him here: {CALENDLY_LINK}. "
-                    "For more about Kanchan's work, visit www.ikanchan.com."
+                    f"For more about Kanchan's work, visit {WEBSITE_URL}."
                 )
                 
                 message = twilio_client.messages.create(
@@ -327,11 +422,14 @@ def handle_conversation():
         response_text = ai_response["response"].replace("<br>", " ")
         response_text = re.sub(r'<[^>]*>', '', response_text)
         
-        response.pause(length=1) #Added 1 second pause.
+        # Add a short pause before speaking
+        response.pause(length=0.5)
         gather.say(response_text, voice='Polly.Matthew-Neural')
         
-        response.pause(length=1)
         response.append(gather)
+        
+        # Add fallback in case no input is received
+        response.redirect('/fallback', method='POST')
         
         logger.info(f"Call SID: {call_sid}")
         logger.info(f"User: {input_text}")
@@ -345,9 +443,10 @@ def handle_conversation():
     except Exception as e:
         logger.error(f"Error in /conversation: {e}", exc_info=True)
         response.say(
-            "I'm experiencing technical difficulties. Please try again later.",
+            "I'm experiencing technical difficulties. Please visit our website at " + WEBSITE_URL + " for more information or to book an appointment.",
             voice='Polly.Matthew-Neural'
         )
+        response.hangup()
         return str(response)
 
 def get_ai_response(user_input, call_sid=None, web_session_id=None):
@@ -371,21 +470,49 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             for msg in web_chat_sessions[web_session_id]
         ])
     
+    # Improved prompt with better structure and guidance
     prompt = (
-        "You are Sam, the personal appointment setter for Kanchan Ghosh. He is a male (He/him/his) Kanchan is an AI developer and freelancer with 17 years of diverse industry experience, specializing in voice bot development. Your role is to professionally and politely assist users in setting up meetings with Kanchan.\n\n"
-        "## Conversation Guidelines:\n"
-        "- Start with a warm and friendly greeting.\n"
-        "- Introduce Kanchan briefly: 'Kanchan is an experienced AI developer specializing in voice bot technology.'\n"
-        "- Engage users in light conversation before smoothly transitioning into discussing business needs.\n"
-        "- If the user expresses interest in AI solutions or business collaboration, suggest scheduling a meeting.\n"
-        "- When offering a meeting, provide this Calendly link: [Calendly Link]\n"
-        "- If needed, guide users to more information on Kanchan's website: www.ikanchan.com.\n"
-        "- Keep responses **clear, concise, and focused**.\n\n"
+        "# Sam: Kanchan Ghosh's Appointment Assistant\n\n"
+        "## Your Role\n"
+        "You are Sam, a professional, friendly AI assistant whose primary task is to schedule meetings between prospects and Kanchan Ghosh. "
+        "Kanchan (he/him) is an accomplished AI developer and freelancer with 17+ years of experience, specializing in voice bot development, "
+        "natural language processing, and conversational AI solutions.\n\n"
+        
+        "## Conversation Strategy\n"
+        "1. Begin with a friendly, professional greeting if this is the first interaction\n"
+        "2. Identify if the person has business needs that Kanchan's AI expertise could address\n"
+        "3. Briefly describe relevant experience Kanchan has that matches their needs\n"
+        "4. If there's interest, suggest scheduling a meeting (mark with [Appointment Suggested] at beginning of message)\n"
+        "5. Ask relevant follow-up questions to understand their specific requirements\n"
+        "6. Never sound scripted or robotic; maintain a natural, helpful conversation\n\n"
+        
+        "## Key Points About Kanchan\n"
+        "- 17+ years of diverse industry experience in AI development\n"
+        "- Specialized expertise in voice bots and conversational AI\n"
+        "- Skilled in designing automated solutions for businesses\n"
+        "- Can develop custom AI agents for diverse business requirements\n"
+        "- Website: www.ikanchan.com\n\n"
+        
+        "## Voice Call Guidelines\n"
+        "- Keep responses under 15 seconds (approximately 40-50 words)\n"
+        "- Use simple, clear language without technical jargon\n"
+        "- Avoid complex sentences that might be difficult to parse in speech\n"
+        "- Be direct but friendly\n"
+        "- If the person seems uninterested, politely end the conversation\n\n"
+        
+        "## Important Instructions\n"
+        "- If suggesting an appointment, include [Appointment Suggested] at the beginning of your response\n"
+        "- DO NOT mention that you're an AI in phone conversations - you're Sam, Kanchan's appointment assistant\n"
+        "- Focus on understanding the person's needs before suggesting solutions\n"
+        "- If you detect high interest, emphasize the value of a direct conversation with Kanchan\n\n"
+        
         "### CONVERSATION HISTORY:\n"
         f"{conversation_context}\n\n"
+        
         "### CURRENT USER MESSAGE:\n"
         f"{user_input}\n\n"
-        "Remember: Be friendly, professional, and guide users to set up a meeting when appropriate.\n"
+        
+        "Respond naturally and conversationally while following the guidelines above."
     )
 
     try:
@@ -393,7 +520,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         logger.info("Sending request to Azure OpenAI")
         
         completion = openai_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT_NAME,  # Use the deployment name instead of hardcoded 'gpt-35-turbo'
+            model=AZURE_OPENAI_DEPLOYMENT_NAME,
             messages=[
                 {"role": "system", "content": prompt},
                 {"role": "user", "content": user_input}
@@ -467,12 +594,21 @@ def cleanup_sessions():
         try:
             now = time.time() * 1000
             removed_count = 0
+            
+            # Clean up web sessions
             for session_id, history in list(web_chat_sessions.items()):
                 if history:
                     last_message_time = history[-1].get("timestamp", 0)
                     if now - last_message_time > 30 * 60 * 1000:  # 30 minutes
                         del web_chat_sessions[session_id]
                         removed_count += 1
+            
+            # Clean up completed call histories older than 24 hours
+            for call_id in list(conversation_history.keys()):
+                if call_id.endswith("_completed"):
+                    completed_at = conversation_history[call_id].get("completed_at", 0)
+                    if now - completed_at > 24 * 60 * 60 * 1000:  # 24 hours
+                        del conversation_history[call_id]
             
             if removed_count > 0:
                 logger.info(f"Removed {removed_count} inactive web sessions")
@@ -488,6 +624,17 @@ def metrics_reporter():
     while True:
         try:
             print_performance_metrics()
+            
+            # Also log call statistics
+            logger.info("===== CALL STATISTICS =====")
+            logger.info(f"Total Calls: {call_statistics['total_calls']}")
+            logger.info(f"Successful Calls: {call_statistics['successful_calls']}")
+            logger.info(f"Answering Machines: {call_statistics['answering_machines']}")
+            logger.info(f"No Answer: {call_statistics['no_answer']}")
+            logger.info(f"Appointments Suggested: {call_statistics['appointments_suggested']}")
+            logger.info(f"Average Call Duration: {call_statistics['avg_call_duration']:.2f}s")
+            logger.info("===========================")
+            
             time.sleep(60)  # Print metrics every minute
         except Exception as e:
             logger.error(f"Error in metrics_reporter: {e}", exc_info=True)
@@ -501,7 +648,39 @@ def health_check():
         "status": "healthy",
         "timestamp": datetime.now().isoformat(),
         "web_sessions": len(web_chat_sessions),
-        "call_conversations": len([k for k in conversation_history.keys() if not k.endswith("_count")])
+        "call_conversations": len([k for k in conversation_history.keys() if not k.endswith("_completed")]),
+        "performance": {
+            "ai_response_avg": sum(performance_metrics.get("ai_response", [0])) / len(performance_metrics.get("ai_response", [1])) if performance_metrics.get("ai_response") else 0,
+            "request_time_avg": sum(performance_metrics.get("total_request_time", [0])) / len(performance_metrics.get("total_request_time", [1])) if performance_metrics.get("total_request_time") else 0
+        },
+        "call_statistics": call_statistics
+    })
+
+# Statistics endpoint for monitoring
+@app.route('/stats', methods=['GET'])
+def statistics():
+    if request.args.get('key') != os.environ.get('STATS_API_KEY'):
+        return jsonify({"error": "Unauthorized"}), 401
+        
+    return jsonify({
+        "timestamp": datetime.now().isoformat(),
+        "call_statistics": call_statistics,
+        "web_sessions": {
+            "active": len(web_chat_sessions),
+            "conversation_counts": {session_id: len(history) for session_id, history in web_chat_sessions.items()}
+        },
+        "performance_metrics": {
+            "ai_response": {
+                "avg": sum(performance_metrics.get("ai_response", [0])) / len(performance_metrics.get("ai_response", [1])) if performance_metrics.get("ai_response") else 0,
+                "min": min(performance_metrics.get("ai_response", [0])) if performance_metrics.get("ai_response") else 0,
+                "max": max(performance_metrics.get("ai_response", [0])) if performance_metrics.get("ai_response") else 0
+            },
+            "total_request_time": {
+                "avg": sum(performance_metrics.get("total_request_time", [0])) / len(performance_metrics.get("total_request_time", [1])) if performance_metrics.get("total_request_time") else 0,
+                "min": min(performance_metrics.get("total_request_time", [0])) if performance_metrics.get("total_request_time") else 0,
+                "max": max(performance_metrics.get("total_request_time", [0])) if performance_metrics.get("total_request_time") else 0
+            }
+        }
     })
 
 if __name__ == '__main__':
@@ -513,19 +692,3 @@ if __name__ == '__main__':
     
     # Start session cleanup in a separate thread
     cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
-    cleanup_thread.start()
-    logger.info("Session cleanup thread started")
-
-    # Start performance metrics printing in a separate thread
-    metrics_thread = threading.Thread(target=metrics_reporter, daemon=True)
-    metrics_thread.start()
-    logger.info("Metrics reporter thread started")
-
-    # Add a message about starting the server
-    logger.info(f"Server is starting at http://0.0.0.0:{port}")
-    
-    # Run the Flask app
-    try:
-        app.run(host='0.0.0.0', port=port, debug=False)
-    except Exception as e:
-        logger.critical(f"Failed to start the Flask application: {e}", exc_info=True)

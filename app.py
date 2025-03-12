@@ -257,6 +257,11 @@ def twiml_response():
     
     return str(response)
 
+import time
+import re
+from flask import request
+from twilio.twiml.voice_response import VoiceResponse, Gather
+
 @app.route('/conversation', methods=['POST'])
 def handle_conversation():
     request_start_time = time.time() * 1000
@@ -271,12 +276,6 @@ def handle_conversation():
     
     response = VoiceResponse()
     
-    if call_sid:
-        if call_sid + "_count" not in conversation_history:
-            conversation_history[call_sid + "_count"] = 0
-        conversation_history[call_sid + "_count"] += 1
-        logger.debug(f"Conversation count for call {call_sid}: {conversation_history[call_sid + '_count']}")
-    
     # Handle hang up
     if digits == '9' or any(word in user_speech.lower() for word in ['goodbye', 'bye', 'hang up', 'end call']):
         logger.info("User requested to end the call")
@@ -290,41 +289,6 @@ def handle_conversation():
     try:
         input_text = user_speech or (f"Button {digits} pressed" if digits else "Hello")
         logger.info(f"Processing conversation input: {input_text}")
-
-        # Check if we've reached 5 interactions
-        if call_sid and call_sid + "_count" in conversation_history and conversation_history[call_sid + "_count"] >= 5:
-            logger.info(f"Call {call_sid} reached maximum interactions (5). Ending call.")
-            response.say(
-                "Thank you for your time. To ensure this free demo remains within budget, "
-                "this call will be disconnected in 20 seconds. I've sent a Calendly link to your phone "
-                "so you can book an appointment for further discussion with Kanchan.",
-                voice='Polly.Matthew-Neural'
-            )
-            
-            # Send SMS with Calendly link
-            try:
-                call = twilio_client.calls(call_sid).fetch()
-                phone_number = call.to
-                logger.info(f"Sending SMS with Calendly link to {phone_number[:6]}****")
-                
-                sms_body = (
-                    "Thank you for trying Sam, Kanchan Ghosh's appointment assistant. "
-                    f"To continue your conversation, please schedule a meeting: {CALENDLY_LINK}. "
-                    "For more information, visit www.ikanchan.com."
-                )
-                
-                message = twilio_client.messages.create(
-                    body=sms_body,
-                    from_=TWILIO_PHONE_NUMBER,
-                    to=phone_number
-                )
-                logger.info(f"SMS sent successfully. SID: {message.sid}")
-            except Exception as e:
-                logger.error(f"Error sending SMS: {e}", exc_info=True)
-            
-            response.pause(length=20)
-            response.hangup()
-            return str(response)
         
         logger.info("Getting AI response for phone conversation")
         ai_response = get_ai_response(input_text, call_sid)
@@ -365,10 +329,9 @@ def handle_conversation():
         
         # Clean response text (remove HTML tags)
         response_text = ai_response["response"].replace("<br>", " ")
-        # Better HTML tag removal
-        import re
         response_text = re.sub(r'<[^>]*>', '', response_text)
         
+        response.pause(length=1) #Added 1 second pause.
         gather.say(response_text, voice='Polly.Matthew-Neural')
         
         response.pause(length=1)

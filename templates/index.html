@@ -287,7 +287,7 @@
       font-size: 0.9rem;
     }
 
-    /* Chat Widget Styles */
+    /* Chat Widget Styles - Commented out 
     .chat-container {
       position: fixed;
       right: 30px;
@@ -385,6 +385,7 @@
     #message-input:focus {
       border-color: var(--mauve);
     }
+    */
 
     /* Responsive adjustments */
     @media (max-width: 768px) {
@@ -401,11 +402,13 @@
         flex-direction: column;
       }
 
+      /* Commented out chat container responsive styles
       .chat-container {
         width: 90%;
         right: 5%;
         left: 5%;
       }
+      */
     }
   </style>
 </head>
@@ -622,13 +625,13 @@
         </div>
       </div>
     </div>
-</body>
 
     <div class="footer">
       &copy; 2025 Kanchan Ghosh. All rights reserved. | Powered by AI Technology
     </div>
   </div>
 
+  <!-- Chat Widget Elements - Removed
   <button id="chat-toggle" class="action-button">💬 Chat with Sam</button>
   <div class="chat-container">
     <div class="chat-header">
@@ -645,8 +648,10 @@
       <button id="send-button" class="action-button">Send</button>
     </div>
   </div>
+  -->
 
   <script>
+/* Commented out chat functionality
 let sessionId = Date.now().toString();
 
 document.getElementById('send-button').addEventListener('click', sendMessage);
@@ -704,6 +709,7 @@ function addMessage(content, sender) {
     messagesContainer.appendChild(messageElement);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
 }
+*/
 
 // Handle phone call functionality
 document.getElementById('call-button').addEventListener('click', function() {

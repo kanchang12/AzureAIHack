@@ -212,7 +212,7 @@ def make_call():
         logger.error(f"Error making call: {e}", exc_info=True)
         return jsonify({"error": "Failed to initiate call. Please try again."}), 500
 
-@app.route('/twiml', methods=['POST'])
+@app.route('/twiml', methods=['GET', 'POST'])
 def twiml_response():
     call_sid = request.form.get('CallSid')
     machine_result = request.form.get('AnsweredBy')

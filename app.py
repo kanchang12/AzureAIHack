@@ -249,9 +249,7 @@ def twiml_response():
     
     response.append(gather)
     
-    # Use full URL for redirect to avoid 404 errors
-    host = request.host_url.rstrip('/')
-    response.redirect(f"{host}/conversation")
+ 
     
     logger.info("TwiML response generated successfully")
     logger.debug(f"TwiML response: {str(response)}")

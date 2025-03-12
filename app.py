@@ -428,18 +428,14 @@ def metrics_reporter():
 
 if __name__ == '__main__':
     # Start session cleanup in a separate thread
-    cleanup_thread = threading.Thread(target=cleanup_sessions)
-    cleanup_thread.daemon = True
+    cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
     cleanup_thread.start()
-    
+
     # Start performance metrics printing in a separate thread
-    metrics_thread = threading.Thread(target=metrics_reporter)
-    metrics_thread.daemon = True
+    metrics_thread = threading.Thread(target=metrics_reporter, daemon=True)
     metrics_thread.start()
-    
+
     # Run the Flask app
     port = int(os.environ.get('PORT', 8000))
-    app.run(host='0.0.0.0', port=port)
-    # Run the Flask app
-    port = int(os.environ.get('PORT', 8000))
+    print(f"Starting Flask app on port {port}") #added logging
     app.run(host='0.0.0.0', port=port)

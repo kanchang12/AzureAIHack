@@ -6,9 +6,8 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
-from azure.ai.inference import ChatCompletionsClient
-from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
 from azure.core.credentials import AzureKeyCredential
+from azure.ai.language.conversations import ConversationAnalysisClient # CLU client
 import time
 import threading
 import sys
@@ -29,9 +28,9 @@ logger = logging.getLogger('sam_appointment')
 
 app = Flask(__name__, static_url_path='')
 
-AZURE_OPENAI_ENDPOINT = os.environ.get('AZURE_OPENAI_ENDPOINT')
-AZURE_OPENAI_API_KEY = os.environ.get('AZURE_OPENAI_API_KEY')
-AZURE_OPENAI_MODEL_NAME = os.environ.get('AZURE_OPENAI_MODEL_NAME', 'gpt-35-turbo')
+# Environment variables - Update these for CLU
+AZURE_CONVERSATIONS_ENDPOINT = os.environ.get('AZURE_CONVERSATIONS_ENDPOINT')
+AZURE_CONVERSATIONS_KEY = os.environ.get('AZURE_CONVERSATIONS_KEY')
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
@@ -39,14 +38,15 @@ CALENDLY_LINK = "https://calendly.com/kanchan-g12/let-s-connect-30-minute-explor
 WEBSITE_URL = "www.ikanchan.com"
 
 logger.info("Starting Sam Appointment Application")
-logger.info(f"Azure OpenAI Endpoint: {AZURE_OPENAI_ENDPOINT}")
-logger.info(f"Azure OpenAI Model Name: {AZURE_OPENAI_MODEL_NAME}")
+logger.info(f"Azure CLU Endpoint: {AZURE_CONVERSATIONS_ENDPOINT}")
 logger.info(f"Twilio Phone Number: {TWILIO_PHONE_NUMBER}")
 logger.info(f"Calendly Link: {CALENDLY_LINK}")
 
-missing_vars = []
-if not AZURE_OPENAI_ENDPOINT:
-    missing_vars.append("AZURE_ENDPOINT")
+missing_vars =
+if not AZURE_CONVERSATIONS_ENDPOINT:
+    missing_vars.append("AZURE_CONVERSATIONS_ENDPOINT")
+if not AZURE_CONVERSATIONS_KEY:
+    missing_vars.append("AZURE_CONVERSATIONS_KEY")
 if not TWILIO_ACCOUNT_SID:
     missing_vars.append("TWILIO_ACCOUNT_SID")
 if not TWILIO_AUTH_TOKEN:
@@ -59,13 +59,14 @@ if missing_vars:
     logger.error("Application may not function correctly without these variables")
 
 try:
-    client = ChatCompletionsClient(
-        endpoint=AZURE_OPENAI_ENDPOINT,
-        credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
+    # Initialize CLU client
+    client = ConversationAnalysisClient(
+        endpoint=AZURE_CONVERSATIONS_ENDPOINT,
+        credential=AzureKeyCredential(AZURE_CONVERSATIONS_KEY),
     )
-    logger.info("Azure OpenAI client initialized successfully")
+    logger.info("Azure CLU client initialized successfully")
 except Exception as e:
-    logger.error(f"Failed to initialize Azure OpenAI client: {e}")
+    logger.error(f"Failed to initialize Azure CLU client: {e}")
 
 try:
     twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
@@ -89,13 +90,13 @@ call_statistics = {
 
 # Performance tracking
 performance_metrics = {
-    "ai_response": [],
-    "total_request_time": []
+    "ai_response":,
+    "total_request_time":
 }
 
 def track_performance(category, execution_time):
     if category not in performance_metrics:
-        performance_metrics[category] = []
+        performance_metrics[category] =
     
     performance_metrics[category].append(execution_time)
     
@@ -149,7 +150,7 @@ def chat():
     
     # Initialize session if it doesn't exist
     if session_id not in web_chat_sessions:
-        web_chat_sessions[session_id] = []
+        web_chat_sessions[session_id] =
         logger.info(f"New web chat session created: {session_id}")
     
     try:
@@ -161,7 +162,6 @@ def chat():
         if ai_response["suggested_appointment"]:
             logger.info("Appointment suggested, adding Calendly link")
             response_html += f'<br><br>You can <a href="{CALENDLY_LINK}" target="_blank">schedule a meeting here</a>.'
-        
         result = {
             "response": response_html,
             "suggested_appointment": ai_response["suggested_appointment"],
@@ -213,9 +213,9 @@ def make_call():
             status_callback_event=['initiated', 'ringing', 'answered', 'completed'],
             timeout=30  # Add a 30-second timeout to avoid long waits
         )
-        
+    
         logger.info(f"Call initiated successfully. SID: {call.sid}")
-        conversation_history[call.sid] = []
+        conversation_history[call.sid] =
         
         total_time = time.time() * 1000 - request_start_time
         track_performance("total_request_time", total_time)
@@ -248,7 +248,7 @@ def call_status():
         # Update average call duration
         call_statistics["avg_call_duration"] = (
             (call_statistics["avg_call_duration"] * (call_statistics["successful_calls"] - 1) +
-             float(call_duration or 0)) / call_statistics["successful_calls"]
+            float(call_duration or 0)) / call_statistics["successful_calls"]
             if call_statistics["successful_calls"] > 0 else 0
         )
         
@@ -387,8 +387,8 @@ def handle_conversation():
                 
                 sms_body = (
                     "Hello! This is Sam, Kanchan Ghosh's appointment assistant. "
-                    "Kanchan is an AI developer with 17 years of experience, specializing in voice bot technology. "
-                    f"You can schedule a meeting with him here: {CALENDLY_LINK}. "
+                    "Kanchan is an AI developer with 17 years of experience,"
+                f"You can schedule a meeting with him here: {CALENDLY_LINK}. "
                     f"For more about Kanchan's work, visit {WEBSITE_URL}."
                 )
                 
@@ -445,70 +445,77 @@ def handle_conversation():
 
 def get_ai_response(user_input, call_sid=None, web_session_id=None):
     start_time = time.time() * 1000
-    
     logger.debug(f"Getting AI response for: call_sid={call_sid}, web_session_id={web_session_id}")
     logger.debug(f"User input: {user_input}")
-    
-    # Get conversation history from appropriate source
-    messages = []
+
+    # Get conversation history (you might need to adapt this part based on how CLU uses context)
+    messages =
     if call_sid and call_sid in conversation_history:
         logger.debug(f"Using call conversation history for {call_sid}")
         for msg in conversation_history[call_sid]:
-            messages.append(UserMessage(content=msg["user"]))
-            messages.append(AssistantMessage(content=msg["assistant"]))
+            messages.append(msg["user"])  # CLU might handle context differently
+            messages.append(msg["assistant"])
     elif web_session_id and web_session_id in web_chat_sessions:
         logger.debug(f"Using web chat history for session {web_session_id}")
         for msg in web_chat_sessions[web_session_id]:
-            messages.append(UserMessage(content=msg["user"]))
-            messages.append(AssistantMessage(content=msg["assistant"]))
-    
-    # Add the current user input
-    messages.append(UserMessage(content=user_input))
-    
+            messages.append(msg["user"])
+            messages.append(msg["assistant"])
+
     try:
-        # Initialize the client with the correct endpoint and credential
-        client = ChatCompletionsClient(
-            endpoint=AZURE_OPENAI_ENDPOINT,
-            credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
+        # Initialize the ConversationAnalysisClient
+        client = ConversationAnalysisClient(
+            endpoint=AZURE_CONVERSATIONS_ENDPOINT,  # Make sure you have this env variable
+            credential=AzureKeyCredential(AZURE_CONVERSATIONS_KEY), # And this one
         )
-        
+
         ai_start_time = time.time() * 1000
-        logger.info("Sending request to Azure OpenAI")
-        
-        # Make sure to include the system message first
-        response = client.complete(
-            messages=[
-                SystemMessage(content="You are Sam, Kanchan Ghosh's appointment assistant. Your role is to schedule meetings between prospects and Kanchan Ghosh, an AI developer with 17+ years of experience."),
-                *messages
-            ],
-            max_tokens=150,
-            temperature=0.7,
-            model=AZURE_OPENAI_MODEL_NAME  # Make sure this matches your deployment name
+        logger.info("Sending request to Azure CLU")
+
+        # Analyze the conversation
+        project_name = "<Your CLU Project Name>"  # Replace with your project name
+        deployment_name = "<Your CLU Deployment Name>" # Replace with your deployment name
+
+        analyze_response = client.analyze_conversation(
+            project_name=project_name,
+            deployment_name=deployment_name,
+            query=user_input
         )
-        
+
         ai_time = time.time() * 1000 - ai_start_time
         track_performance("ai_response", ai_time)
-        logger.info(f"Received response from Azure OpenAI in {ai_time:.2f}ms")
+        logger.info(f"Received response from Azure CLU in {ai_time:.2f} ms")
+
+        # Extract the intent and response
+        top_intent = analyze_response.result.prediction.top_intent
+        response_text = analyze_response.result.prediction.intents[top_intent].confidence
         
-        response_text = response.choices[0].message.content.strip()
-        suggested_appointment = "[Appointment Suggested]" in response_text
+        #Default response
+        response_text = "I am experiencing technical difficulties. Could you please try again?"
+
+        if analyze_response and analyze_response.result and analyze_response.result.prediction and analyze_response.result.prediction.answers:
+            answers = analyze_response.result.prediction.answers
+            if answers:
+                response_text = answers[0].answer
+        
+        suggested_appointment = "[Appointment Suggested]" in response_text # You might need to adjust this
+
         response_text = response_text.replace("[Appointment Suggested]", "")
-        
-        logger.debug(f"AI response: {response_text}")
+
+        logger.debug(f"CLU response: {response_text}")
         logger.debug(f"Suggested appointment: {suggested_appointment}")
-        
+
         # Save to appropriate conversation history
         if call_sid:
             if call_sid not in conversation_history:
-                conversation_history[call_sid] = []
+                conversation_history[call_sid] =
                 logger.debug(f"Created new conversation history for call {call_sid}")
-                
+
             conversation_history[call_sid].append({
                 "user": user_input,
                 "assistant": response_text,
                 "timestamp": time.time() * 1000
             })
-            
+
             # Limit conversation history size
             if len(conversation_history[call_sid]) > 10:
                 conversation_history[call_sid] = conversation_history[call_sid][-10:]
@@ -519,26 +526,26 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
                 "assistant": response_text,
                 "timestamp": time.time() * 1000
             })
-            
+
             # Limit web session history size
             if len(web_chat_sessions[web_session_id]) > 10:
                 web_chat_sessions[web_session_id] = web_chat_sessions[web_session_id][-10:]
                 logger.debug(f"Trimmed conversation history for web session {web_session_id}")
-        
+
         total_time = time.time() * 1000 - start_time
         track_performance("get_ai_response", total_time)
-        
+
         return {
             "response": response_text,
             "suggested_appointment": suggested_appointment
         }
-    
+
     except Exception as e:
         logger.error(f"Error in get_ai_response: {e}", exc_info=True)
-        
+
         error_time = time.time() * 1000 - start_time
         track_performance("get_ai_response", error_time)
-        
+
         return {
             "response": "I apologize, but I'm having trouble processing your request. Could you please try again?",
             "suggested_appointment": False

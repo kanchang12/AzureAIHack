@@ -45,7 +45,7 @@ logger.info(f"Calendly Link: {CALENDLY_LINK}")
 # Check for missing environment variables
 missing_vars = []
 if not AZURE_OPENAI_ENDPOINT:
-    missing_vars.append("AZURE_OPENAI_ENDPOINT")
+    missing_vars.append("AZURE_ENDPOINT")
 if not TWILIO_ACCOUNT_SID:
     missing_vars.append("TWILIO_ACCOUNT_SID")
 if not TWILIO_AUTH_TOKEN:
@@ -61,7 +61,7 @@ if missing_vars:
 try:
     openai_client = ChatCompletionsClient(
         endpoint=AZURE_OPENAI_ENDPOINT,
-        credential=DefaultAzureCredential(),
+        api_key=AZURE_OPENAI_API_KEY,
     )
     logger.info("Azure OpenAI client initialized successfully")
 except Exception as e:

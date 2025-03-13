@@ -9,6 +9,7 @@ from twilio.rest import Client
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
 from azure.identity import DefaultAzureCredential
+from azure.core.credentials import AzureKeyCredential
 import time
 import threading
 import sys

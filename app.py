@@ -198,7 +198,7 @@ def make_call():
         # Construct the full URL for the TwiML endpoint
         host = request.host_url.rstrip('/')
         twiml_url = f"{host}/twiml"
-        status_callback_url = f"{host}/call-status"
+        #status_callback_url = f"{host}/call-status"
         logger.info(f"TwiML URL for call: {twiml_url}")
         logger.info(f"Status callback URL: {status_callback_url}")
         

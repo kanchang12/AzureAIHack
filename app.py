@@ -7,7 +7,7 @@ from flask import Flask, request, jsonify, render_template, send_from_directory
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
 from azure.core.credentials import AzureKeyCredential
-from azure.ai.language.conversations import ConversationAnalysisClient # CLU client
+from azure.ai.language.conversations import ConversationAnalysisClient  # CLU client
 import time
 import threading
 import sys
@@ -90,13 +90,13 @@ call_statistics = {
 
 # Performance tracking
 performance_metrics = {
-    "ai_response":,
-    "total_request_time":
+    "ai_response": [],
+    "total_request_time": []
 }
 
 def track_performance(category, execution_time):
     if category not in performance_metrics:
-        performance_metrics[category] =
+        performance_metrics[category] = []
     
     performance_metrics[category].append(execution_time)
     
@@ -150,7 +150,7 @@ def chat():
     
     # Initialize session if it doesn't exist
     if session_id not in web_chat_sessions:
-        web_chat_sessions[session_id] =
+        web_chat_sessions[session_id] = []
         logger.info(f"New web chat session created: {session_id}")
     
     try:
@@ -215,7 +215,7 @@ def make_call():
         )
     
         logger.info(f"Call initiated successfully. SID: {call.sid}")
-        conversation_history[call.sid] =
+        conversation_history[call.sid] = []
         
         total_time = time.time() * 1000 - request_start_time
         track_performance("total_request_time", total_time)
@@ -255,7 +255,7 @@ def call_status():
         # Archive conversation history
         if call_sid in conversation_history:
             conversation_history[f"{call_sid}_completed"] = {
-                "history": conversation_history[call_sid],
+                "history": conversation_history[call.sid],
                 "completed_at": time.time() * 1000,
                 "duration": call_duration,
                 "answered_by": answered_by

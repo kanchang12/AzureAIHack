@@ -466,6 +466,10 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     messages.append(UserMessage(content=user_input))
     
     try:
+        client = ChatCompletionsClient(
+        endpoint=AZURE_OPENAI_ENDPOINT,
+        api_key=AZURE_OPENAI_API_KEY,
+        )
         ai_start_time = time.time() * 1000
         logger.info("Sending request to Azure OpenAI")
         

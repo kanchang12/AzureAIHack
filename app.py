@@ -62,7 +62,7 @@ if missing_vars:
 try:
     client = ChatCompletionsClient(
         endpoint=AZURE_OPENAI_ENDPOINT,
-        credential=AZURE_OPENAI_API_KEY,
+        credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
     )
     logger.info("Azure OpenAI client initialized successfully")
 except Exception as e:
@@ -469,7 +469,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     try:
         client = ChatCompletionsClient(
         endpoint=AZURE_OPENAI_ENDPOINT,
-        credential=AZURE_OPENAI_API_KEY,
+        credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
         )
         ai_start_time = time.time() * 1000
         logger.info("Sending request to Azure OpenAI")

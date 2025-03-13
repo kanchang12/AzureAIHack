@@ -59,7 +59,7 @@ if missing_vars:
 
 # Initialize clients
 try:
-    openai_client = ChatCompletionsClient(
+    client = ChatCompletionsClient(
         endpoint=AZURE_OPENAI_ENDPOINT,
         api_key=AZURE_OPENAI_API_KEY,
     )
@@ -469,7 +469,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         ai_start_time = time.time() * 1000
         logger.info("Sending request to Azure OpenAI")
         
-        response = openai_client.complete(
+        response = client.complete(
             messages=[
                 SystemMessage(content="You are Sam, Kanchan Ghosh's appointment assistant. Your role is to schedule meetings between prospects and Kanchan Ghosh, an AI developer with 17+ years of experience."),
                 *messages

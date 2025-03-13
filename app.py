@@ -8,64 +8,53 @@ from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
 from azure.ai.inference import ChatCompletionsClient
 from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
-from azure.identity import DefaultAzureCredential
 from azure.core.credentials import AzureKeyCredential
 import time
 import threading
 import sys
 
-# Configure logging
+# Configure logging to console and file
 logging.basicConfig(
     level=logging.INFO,
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
     handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('app.log')
+        logging.StreamHandler(sys.stdout),  # Log to console
+        logging.FileHandler('app.log')       # Log to file
     ]
 )
 logger = logging.getLogger('sam_appointment')
 
 app = Flask(__name__, static_url_path='')
 
-# Configuration
-AZURE_OPENAI_ENDPOINT = os.environ.get('AZURE_OPENAI_ENDPOINT')
-AZURE_OPENAI_API_KEY = os.environ.get('AZURE_OPENAI_API_KEY')
-AZURE_OPENAI_MODEL_NAME = os.environ.get('AZURE_OPENAI_MODEL_NAME', 'gpt-35-turbo')
-TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
-TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
-TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
-CALENDLY_LINK = "https://calendly.com/kanchan-g12/let-s-connect-30-minute-exploratory-call"
-WEBSITE_URL = "www.ikanchan.com"
+# Configuration from Environment Variables
+config = {
+    'AZURE_OPENAI_ENDPOINT': os.environ.get('AZURE_OPENAI_ENDPOINT'),
+    'AZURE_OPENAI_API_KEY': os.environ.get('AZURE_OPENAI_API_KEY'),
+    'AZURE_OPENAI_MODEL_NAME': os.environ.get('AZURE_OPENAI_MODEL_NAME', 'gpt-35-turbo'),
+    'TWILIO_ACCOUNT_SID': os.environ.get('TWILIO_ACCOUNT_SID'),
+    'TWILIO_AUTH_TOKEN': os.environ.get('TWILIO_AUTH_TOKEN'),
+    'TWILIO_PHONE_NUMBER': os.environ.get('TWILIO_PHONE_NUMBER'),
+    'CALENDLY_LINK': "https://calendly.com/kanchan-g12/let-s-connect-30-minute-exploratory-call",
+    'WEBSITE_URL': "www.ikanchan.com"
+}
 
-# Log configuration details (without sensitive info)
+# Log startup configurations (excluding sensitive API keys)
 logger.info("Starting Sam Appointment Application")
-logger.info(f"Azure OpenAI Endpoint: {AZURE_OPENAI_ENDPOINT}")
-logger.info(f"Azure OpenAI Model Name: {AZURE_OPENAI_MODEL_NAME}")
-logger.info(f"Twilio Phone Number: {TWILIO_PHONE_NUMBER}")
-logger.info(f"Calendly Link: {CALENDLY_LINK}")
+for key, value in config.items():
+    if key != 'AZURE_OPENAI_API_KEY':  # Exclude API key from logs
+        logger.info(f"{key}: {value}")
 
-# Check for missing environment variables
-missing_vars = []
-if not AZURE_OPENAI_ENDPOINT:
-    missing_vars.append("AZURE_ENDPOINT")
-if not TWILIO_ACCOUNT_SID:
-    missing_vars.append("TWILIO_ACCOUNT_SID")
-if not TWILIO_AUTH_TOKEN:
-    missing_vars.append("TWILIO_AUTH_TOKEN")
-if not TWILIO_PHONE_NUMBER:
-    missing_vars.append("TWILIO_PHONE_NUMBER")
-
+# Validate required environment variables
+missing_vars = [key for key, value in config.items() if key not in ('AZURE_OPENAI_MODEL_NAME', 'WEBSITE_URL') and not value] #model name and website are optional.
 if missing_vars:
     logger.error(f"Missing required environment variables: {', '.join(missing_vars)}")
-    logger.error("Application may not function correctly without these variables")
+    logger.error("Application may not function correctly without these variables.")
 
-# Initialize clients
+# Initialize Azure OpenAI Client
 try:
-    client = ChatCompletionsClient(
-        endpoint=AZURE_OPENAI_ENDPOINT,
-        credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
-    )
-    logger.info("Azure OpenAI client initialized successfully")
+    azure_credential = AzureKeyCredential(config['AZURE_OPENAI_API_KEY'])
+    client = ChatCompletionsClient(endpoint=config['AZURE_OPENAI_ENDPOINT'], credential=azure_credential)
+    logger.info("Azure OpenAI client initialized successfully.")
 except Exception as e:
     logger.error(f"Failed to initialize Azure OpenAI client: {e}")
 

@@ -466,13 +466,16 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     messages.append(UserMessage(content=user_input))
     
     try:
+        # Initialize the client with the correct endpoint and credential
         client = ChatCompletionsClient(
-        endpoint=AZURE_OPENAI_ENDPOINT,
-        credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
+            endpoint=AZURE_OPENAI_ENDPOINT,
+            credential=AzureKeyCredential(AZURE_OPENAI_API_KEY),
         )
+        
         ai_start_time = time.time() * 1000
         logger.info("Sending request to Azure OpenAI")
         
+        # Make sure to include the system message first
         response = client.complete(
             messages=[
                 SystemMessage(content="You are Sam, Kanchan Ghosh's appointment assistant. Your role is to schedule meetings between prospects and Kanchan Ghosh, an AI developer with 17+ years of experience."),
@@ -480,7 +483,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             ],
             max_tokens=150,
             temperature=0.7,
-            model=AZURE_OPENAI_MODEL_NAME
+            model=AZURE_OPENAI_MODEL_NAME  # Make sure this matches your deployment name
         )
         
         ai_time = time.time() * 1000 - ai_start_time

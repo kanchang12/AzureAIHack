@@ -6,3 +6,4 @@ python-dotenv
 requests
 gunicorn
 azure-core
+python-3.9.19

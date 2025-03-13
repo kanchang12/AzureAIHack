@@ -1,6 +1,7 @@
-flask
+Flask
 twilio
-openai
-azure-ai-textanalytics
+azure-ai-inference
+azure-identity
+python-dotenv
+requests
 gunicorn
-

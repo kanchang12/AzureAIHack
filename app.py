@@ -143,7 +143,7 @@ def send_static(path):
     logger.debug(f"Serving static file: {path}")
     return send_from_directory('static', path)
 
-@app.route('/chat', methods=['POST'], ['GET'])
+@app.route('/chat', methods=['POST'])
 def chat():
     request_start_time = time.time() * 1000
     
@@ -187,7 +187,7 @@ def chat():
             "suggested_appointment": False
         }), 500
 
-@app.route('/call', methods=['POST'], ['GET'])
+@app.route('/call', methods=['POST'])
 def make_call():
     request_start_time = time.time() * 1000
     
@@ -232,7 +232,7 @@ def make_call():
         logger.error(f"Error making call: {e}", exc_info=True)
         return jsonify({"error": "Failed to initiate call. Please try again."}), 500
 
-@app.route('/call-status', methods=['POST'], ['GET'])
+@app.route('/call-status', methods=['POST'])
 def call_status():
     call_sid = request.form.get('CallSid')
     call_status = request.form.get('CallStatus')
@@ -350,7 +350,7 @@ def fallback():
     
     return str(response)
 
-@app.route('/conversation', methods=['POST'], [GET'])
+@app.route('/conversation', methods=['POST'])
 def handle_conversation():
     request_start_time = time.time() * 1000
     

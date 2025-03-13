@@ -143,7 +143,7 @@ def send_static(path):
     logger.debug(f"Serving static file: {path}")
     return send_from_directory('static', path)
 
-@app.route('/chat', methods=['POST'], [GET'])
+@app.route('/chat', methods=['POST'], ['GET'])
 def chat():
     request_start_time = time.time() * 1000
     

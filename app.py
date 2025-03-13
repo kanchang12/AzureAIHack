@@ -449,7 +449,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     logger.debug(f"User input: {user_input}")
 
     # Get conversation history (you might need to adapt this part based on how CLU uses context)
-    messages =
+    messages = ''
     if call_sid and call_sid in conversation_history:
         logger.debug(f"Using call conversation history for {call_sid}")
         for msg in conversation_history[call_sid]:

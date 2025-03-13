@@ -42,7 +42,7 @@ logger.info(f"Azure CLU Endpoint: {AZURE_CONVERSATIONS_ENDPOINT}")
 logger.info(f"Twilio Phone Number: {TWILIO_PHONE_NUMBER}")
 logger.info(f"Calendly Link: {CALENDLY_LINK}")
 
-missing_vars =
+missing_vars = []
 if not AZURE_CONVERSATIONS_ENDPOINT:
     missing_vars.append("AZURE_CONVERSATIONS_ENDPOINT")
 if not AZURE_CONVERSATIONS_KEY:

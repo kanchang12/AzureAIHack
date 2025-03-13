@@ -73,8 +73,6 @@ try:
 except Exception as e:
     logger.error(f"Failed to initialize Twilio client: {e}")
 
-
-
 # Store conversation histories
 conversation_history = {}
 web_chat_sessions = {}

@@ -6,3 +6,6 @@ python-dotenv
 requests
 gunicorn
 azure-core
+
+azure-ai-language-conversations
+

@@ -6,7 +6,9 @@ from datetime import datetime, timedelta
 from flask import Flask, request, jsonify, render_template, send_from_directory
 from twilio.twiml.voice_response import VoiceResponse, Gather
 from twilio.rest import Client
-from openai import AzureOpenAI
+from azure.ai.inference import ChatCompletionsClient
+from azure.ai.inference.models import SystemMessage, UserMessage, AssistantMessage
+from azure.identity import DefaultAzureCredential
 import time
 import threading
 import sys
@@ -25,10 +27,8 @@ logger = logging.getLogger('sam_appointment')
 app = Flask(__name__, static_url_path='')
 
 # Configuration
-AZURE_OPENAI_API_KEY = os.environ.get('AZURE_OPENAI_API_KEY')
 AZURE_OPENAI_ENDPOINT = os.environ.get('AZURE_OPENAI_ENDPOINT')
-AZURE_OPENAI_API_VERSION = os.environ.get('AZURE_OPENAI_API_VERSION', '2023-05-15')
-AZURE_OPENAI_DEPLOYMENT_NAME = os.environ.get('AZURE_OPENAI_DEPLOYMENT_NAME')
+AZURE_OPENAI_MODEL_NAME = os.environ.get('AZURE_OPENAI_MODEL_NAME', 'gpt-35-turbo')
 TWILIO_ACCOUNT_SID = os.environ.get('TWILIO_ACCOUNT_SID')
 TWILIO_AUTH_TOKEN = os.environ.get('TWILIO_AUTH_TOKEN')
 TWILIO_PHONE_NUMBER = os.environ.get('TWILIO_PHONE_NUMBER')
@@ -38,19 +38,14 @@ WEBSITE_URL = "www.ikanchan.com"
 # Log configuration details (without sensitive info)
 logger.info("Starting Sam Appointment Application")
 logger.info(f"Azure OpenAI Endpoint: {AZURE_OPENAI_ENDPOINT}")
-logger.info(f"Azure OpenAI API Version: {AZURE_OPENAI_API_VERSION}")
-logger.info(f"Azure OpenAI Deployment Name: {AZURE_OPENAI_DEPLOYMENT_NAME}")
+logger.info(f"Azure OpenAI Model Name: {AZURE_OPENAI_MODEL_NAME}")
 logger.info(f"Twilio Phone Number: {TWILIO_PHONE_NUMBER}")
 logger.info(f"Calendly Link: {CALENDLY_LINK}")
 
 # Check for missing environment variables
 missing_vars = []
-if not AZURE_OPENAI_API_KEY:
-    missing_vars.append("AZURE_OPENAI_API_KEY")
 if not AZURE_OPENAI_ENDPOINT:
     missing_vars.append("AZURE_OPENAI_ENDPOINT")
-if not AZURE_OPENAI_DEPLOYMENT_NAME:
-    missing_vars.append("AZURE_OPENAI_DEPLOYMENT_NAME")
 if not TWILIO_ACCOUNT_SID:
     missing_vars.append("TWILIO_ACCOUNT_SID")
 if not TWILIO_AUTH_TOKEN:
@@ -64,10 +59,9 @@ if missing_vars:
 
 # Initialize clients
 try:
-    openai_client = AzureOpenAI(
-        api_key=AZURE_OPENAI_API_KEY,
-        api_version=AZURE_OPENAI_API_VERSION,
-        azure_endpoint=AZURE_OPENAI_ENDPOINT
+    openai_client = ChatCompletionsClient(
+        endpoint=AZURE_OPENAI_ENDPOINT,
+        credential=DefaultAzureCredential(),
     )
     logger.info("Azure OpenAI client initialized successfully")
 except Exception as e:
@@ -456,84 +450,40 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     logger.debug(f"User input: {user_input}")
     
     # Get conversation history from appropriate source
-    conversation_context = ""
+    messages = []
     if call_sid and call_sid in conversation_history:
         logger.debug(f"Using call conversation history for {call_sid}")
-        conversation_context = "\n".join([
-            f"User: {msg['user']}\nAssistant: {msg['assistant']}"
-            for msg in conversation_history[call_sid]
-        ])
+        for msg in conversation_history[call_sid]:
+            messages.append(UserMessage(content=msg["user"]))
+            messages.append(AssistantMessage(content=msg["assistant"]))
     elif web_session_id and web_session_id in web_chat_sessions:
         logger.debug(f"Using web chat history for session {web_session_id}")
-        conversation_context = "\n".join([
-            f"User: {msg['user']}\nAssistant: {msg['assistant']}"
-            for msg in web_chat_sessions[web_session_id]
-        ])
+        for msg in web_chat_sessions[web_session_id]:
+            messages.append(UserMessage(content=msg["user"]))
+            messages.append(AssistantMessage(content=msg["assistant"]))
     
-    # Improved prompt with better structure and guidance
-    prompt = (
-        "# Sam: Kanchan Ghosh's Appointment Assistant\n\n"
-        "## Your Role\n"
-        "You are Sam, a professional, friendly AI assistant whose primary task is to schedule meetings between prospects and Kanchan Ghosh. "
-        "Kanchan (he/him) is an accomplished AI developer and freelancer with 17+ years of experience, specializing in voice bot development, "
-        "natural language processing, and conversational AI solutions.\n\n"
-        
-        "## Conversation Strategy\n"
-        "1. Begin with a friendly, professional greeting if this is the first interaction\n"
-        "2. Identify if the person has business needs that Kanchan's AI expertise could address\n"
-        "3. Briefly describe relevant experience Kanchan has that matches their needs\n"
-        "4. If there's interest, suggest scheduling a meeting (mark with [Appointment Suggested] at beginning of message)\n"
-        "5. Ask relevant follow-up questions to understand their specific requirements\n"
-        "6. Never sound scripted or robotic; maintain a natural, helpful conversation\n\n"
-        
-        "## Key Points About Kanchan\n"
-        "- 17+ years of diverse industry experience in AI development\n"
-        "- Specialized expertise in voice bots and conversational AI\n"
-        "- Skilled in designing automated solutions for businesses\n"
-        "- Can develop custom AI agents for diverse business requirements\n"
-        "- Website: www.ikanchan.com\n\n"
-        
-        "## Voice Call Guidelines\n"
-        "- Keep responses under 15 seconds (approximately 40-50 words)\n"
-        "- Use simple, clear language without technical jargon\n"
-        "- Avoid complex sentences that might be difficult to parse in speech\n"
-        "- Be direct but friendly\n"
-        "- If the person seems uninterested, politely end the conversation\n\n"
-        
-        "## Important Instructions\n"
-        "- If suggesting an appointment, include [Appointment Suggested] at the beginning of your response\n"
-        "- DO NOT mention that you're an AI in phone conversations - you're Sam, Kanchan's appointment assistant\n"
-        "- Focus on understanding the person's needs before suggesting solutions\n"
-        "- If you detect high interest, emphasize the value of a direct conversation with Kanchan\n\n"
-        
-        "### CONVERSATION HISTORY:\n"
-        f"{conversation_context}\n\n"
-        
-        "### CURRENT USER MESSAGE:\n"
-        f"{user_input}\n\n"
-        
-        "Respond naturally and conversationally while following the guidelines above."
-    )
-
+    # Add the current user input
+    messages.append(UserMessage(content=user_input))
+    
     try:
         ai_start_time = time.time() * 1000
         logger.info("Sending request to Azure OpenAI")
         
-        completion = openai_client.chat.completions.create(
-            model=AZURE_OPENAI_DEPLOYMENT_NAME,
+        response = openai_client.complete(
             messages=[
-                {"role": "system", "content": prompt},
-                {"role": "user", "content": user_input}
+                SystemMessage(content="You are Sam, Kanchan Ghosh's appointment assistant. Your role is to schedule meetings between prospects and Kanchan Ghosh, an AI developer with 17+ years of experience."),
+                *messages
             ],
             max_tokens=150,
-            temperature=0.7
+            temperature=0.7,
+            model=AZURE_OPENAI_MODEL_NAME
         )
         
         ai_time = time.time() * 1000 - ai_start_time
         track_performance("ai_response", ai_time)
         logger.info(f"Received response from Azure OpenAI in {ai_time:.2f}ms")
         
-        response_text = completion.choices[0].message.content.strip()
+        response_text = response.choices[0].message.content.strip()
         suggested_appointment = "[Appointment Suggested]" in response_text
         response_text = response_text.replace("[Appointment Suggested]", "")
         
@@ -692,3 +642,10 @@ if __name__ == '__main__':
     
     # Start session cleanup in a separate thread
     cleanup_thread = threading.Thread(target=cleanup_sessions, daemon=True)
+    cleanup_thread.start()
+    
+    # Start metrics reporter in a separate thread
+    metrics_thread = threading.Thread(target=metrics_reporter, daemon=True)
+    metrics_thread.start()
+    
+    app.run(host='0.0.0.0', port=port)

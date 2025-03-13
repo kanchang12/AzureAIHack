@@ -1,6 +1,7 @@
 Flask
 twilio
 azure-ai-inference
+azure.core.credentials
 azure-identity
 python-dotenv
 requests

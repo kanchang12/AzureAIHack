@@ -485,7 +485,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         # Save to appropriate conversation history
         if call_sid:
             if call_sid not in conversation_history:
-                conversation_history[call_sid] =
+                conversation_history[call_sid] = []
                 logger.debug(f"Created new conversation history for call {call_sid}")
 
             conversation_history[call_sid].append({

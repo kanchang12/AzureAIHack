@@ -226,12 +226,12 @@ def make_call():
         logger.error(f"Error making call: {e}", exc_info=True)
         return jsonify({"error": "Failed to initiate call. Please try again."}), 500
 
-@app.route('/call-status', methods=['POST'])
+@app.route('/call-status', methods=['POST', 'GET'])
 def call_status():
-    call_sid = request.form.get('CallSid')
-    call_status = request.form.get('CallStatus')
-    call_duration = request.form.get('CallDuration')
-    answered_by = request.form.get('AnsweredBy')
+    call_sid = request.values.get('CallSid')
+    call_status = request.values.get('CallStatus')
+    call_duration = request.values.get('CallDuration')
+    answered_by = request.values.get('AnsweredBy')
     
     logger.info(f"Call status update: SID={call_sid}, Status={call_status}, Duration={call_duration}s, AnsweredBy={answered_by}")
     
@@ -245,17 +245,21 @@ def call_status():
         elif answered_by in ['machine_start', 'machine']:
             call_statistics["answering_machines"] += 1
         
-        # Update average call duration
-        call_statistics["avg_call_duration"] = (
-            (call_statistics["avg_call_duration"] * (call_statistics["successful_calls"] - 1) +
-            float(call_duration or 0)) / call_statistics["successful_calls"]
-            if call_statistics["successful_calls"] > 0 else 0
-        )
+        # Update average call duration if we have data
+        if call_duration and call_statistics["successful_calls"] > 0:
+            try:
+                duration_float = float(call_duration)
+                call_statistics["avg_call_duration"] = (
+                    (call_statistics["avg_call_duration"] * (call_statistics["successful_calls"] - 1) +
+                    duration_float) / call_statistics["successful_calls"]
+                )
+            except (ValueError, TypeError):
+                logger.warning(f"Could not convert call duration '{call_duration}' to float")
         
         # Archive conversation history
         if call_sid in conversation_history:
             conversation_history[f"{call_sid}_completed"] = {
-                "history": conversation_history[call.sid],
+                "history": conversation_history[call_sid],
                 "completed_at": time.time() * 1000,
                 "duration": call_duration,
                 "answered_by": answered_by
@@ -448,58 +452,77 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     logger.debug(f"Getting AI response for: call_sid={call_sid}, web_session_id={web_session_id}")
     logger.debug(f"User input: {user_input}")
 
-    # Get conversation history (you might need to adapt this part based on how CLU uses context)
-    messages = ''
+    # Get conversation history
+    conversation_context = []
     if call_sid and call_sid in conversation_history:
         logger.debug(f"Using call conversation history for {call_sid}")
-        for msg in conversation_history[call_sid]:
-            messages.append(msg["user"])  # CLU might handle context differently
-            messages.append(msg["assistant"])
+        conversation_context = conversation_history[call_sid]
     elif web_session_id and web_session_id in web_chat_sessions:
         logger.debug(f"Using web chat history for session {web_session_id}")
-        for msg in web_chat_sessions[web_session_id]:
-            messages.append(msg["user"])
-            messages.append(msg["assistant"])
+        conversation_context = web_chat_sessions[web_session_id]
 
     try:
         # Initialize the ConversationAnalysisClient
         client = ConversationAnalysisClient(
-            endpoint=AZURE_CONVERSATIONS_ENDPOINT,  # Make sure you have this env variable
-            credential=AzureKeyCredential(AZURE_CONVERSATIONS_KEY), # And this one
+            endpoint=AZURE_CONVERSATIONS_ENDPOINT,
+            credential=AzureKeyCredential(AZURE_CONVERSATIONS_KEY),
         )
 
         ai_start_time = time.time() * 1000
         logger.info("Sending request to Azure CLU")
 
-        # Analyze the conversation
-        project_name = "<Your CLU Project Name>"  # Replace with your project name
-        deployment_name = "<Your CLU Deployment Name>" # Replace with your deployment name
+        # Set up the project and deployment information
+        project_name = "SamAppointmentBot"  # Replace with your actual project name
+        deployment_name = "production"      # Replace with your actual deployment name
 
+        # Prepare conversation history for CLU context
+        history = []
+        for message in conversation_context:
+            history.append({
+                "role": "user",
+                "content": message["user"]
+            })
+            history.append({
+                "role": "assistant", 
+                "content": message["assistant"]
+            })
+
+        # Analyze the conversation with the task parameter
         analyze_response = client.analyze_conversation(
+            task="conversation",  # Required task parameter
             project_name=project_name,
             deployment_name=deployment_name,
-            query=user_input
+            query=user_input,
+            conversation_history=history if history else None
         )
 
         ai_time = time.time() * 1000 - ai_start_time
         track_performance("ai_response", ai_time)
         logger.info(f"Received response from Azure CLU in {ai_time:.2f} ms")
 
-        # Extract the intent and response
-        top_intent = analyze_response.result.prediction.top_intent
-        response_text = analyze_response.result.prediction.intents[top_intent].confidence
-        
-        #Default response
+        # Extract the response based on the Azure CLU response structure
         response_text = "I am experiencing technical difficulties. Could you please try again?"
+        suggested_appointment = False
 
-        if analyze_response and analyze_response.result and analyze_response.result.prediction and analyze_response.result.prediction.answers:
-            answers = analyze_response.result.prediction.answers
-            if answers:
-                response_text = answers[0].answer
-        
-        suggested_appointment = "[Appointment Suggested]" in response_text # You might need to adjust this
-
-        response_text = response_text.replace("[Appointment Suggested]", "")
+        # Check if we have a valid response
+        if hasattr(analyze_response, "result") and hasattr(analyze_response.result, "prediction"):
+            # Method 1: Check for answers
+            if hasattr(analyze_response.result.prediction, "answers") and analyze_response.result.prediction.answers:
+                response_text = analyze_response.result.prediction.answers[0].answer
+            
+            # Method 2: Check for top intent
+            elif hasattr(analyze_response.result.prediction, "top_intent"):
+                top_intent = analyze_response.result.prediction.top_intent
+                # Get the response from the top intent
+                if top_intent and top_intent in analyze_response.result.prediction.intents:
+                    # Get response from intent (implementation depends on CLU setup)
+                    intent_info = analyze_response.result.prediction.intents[top_intent]
+                    if hasattr(intent_info, "result"):
+                        response_text = intent_info.result
+                    
+            # Check if appointment is suggested
+            suggested_appointment = "[Appointment Suggested]" in response_text
+            response_text = response_text.replace("[Appointment Suggested]", "")
 
         logger.debug(f"CLU response: {response_text}")
         logger.debug(f"Suggested appointment: {suggested_appointment}")
@@ -550,7 +573,6 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             "response": "I apologize, but I'm having trouble processing your request. Could you please try again?",
             "suggested_appointment": False
         }
-
 # Session cleanup - remove inactive web sessions after 30 minutes
 def cleanup_sessions():
     logger.info("Session cleanup thread started")

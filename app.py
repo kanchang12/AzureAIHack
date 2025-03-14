@@ -39,7 +39,7 @@ logger.info("Starting Sam Appointment Application")
 logger.info(f"Twilio Phone Number: {TWILIO_PHONE_NUMBER}")
 logger.info(f"Calendly Link: {CALENDLY_LINK}")
 
-missing_vars =
+missing_vars = []
 if not OPENAI_API_KEY:  # Check for OpenAI API key
     missing_vars.append("OPENAI_API_KEY")
 if not TWILIO_ACCOUNT_SID:
@@ -444,7 +444,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
     logger.debug(f"User input: {user_input}")
 
     # Get conversation history
-    conversation_context =
+    conversation_context = []
     if call_sid and call_sid in conversation_history:
         logger.debug(f"Using call conversation history for {call_sid}")
         conversation_context = conversation_history[call_sid]

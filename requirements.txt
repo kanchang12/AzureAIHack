@@ -6,6 +6,6 @@ python-dotenv
 requests
 gunicorn
 azure-core
-
+openai
 azure-ai-language-conversations
 

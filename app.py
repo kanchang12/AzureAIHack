@@ -81,7 +81,7 @@ call_statistics = {
 
 # Performance tracking
 performance_metrics = {
-    "ai_response" []:,
+    "ai_response": [],
     "total_request_time": []
 }
 

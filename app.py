@@ -60,7 +60,8 @@ except Exception as e:
     logger.error(f"Failed to initialize Twilio client: {e}")
 
 try:
-    openai.api_key = OPENAI_API_KEY  # Initialize OpenAI client
+    openai_api_key = os.environ.get("OPENAI_API_KEY")
+    openai_client = OpenAI(api_key=openai_api_key)
     logger.info("OpenAI client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize OpenAI client: {e}")

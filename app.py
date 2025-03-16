@@ -86,6 +86,14 @@ performance_metrics = {
     "total_request_time": []
 }
 
+def send_sms(to, body):
+    message = client.messages.create(
+        body="Thank you for the call. You can book an appointment here https://calendly.com/kanchan-g12/let-s-connect-30-minute-exploratory-call",
+        from_=TWILIO_PHONE_NUMBER,  # Replace with your Twilio phone number
+        to=phone_number
+    )
+    return message.sid
+
 def track_performance(category, execution_time):
     if category not in performance_metrics:
         performance_metrics[category] = []
@@ -229,6 +237,7 @@ def call_status():
     
     # Handle different call statuses for analytics
     if call_status == 'completed':
+        sms_sid = send_sms(phone_number, body)
         logger.info(f"Call completed: SID={call_sid}, Duration={call_duration}s")
         
         # Update call statistics
@@ -462,7 +471,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
         You are Sam, an AI assistant for Kanchan Ghosh, an AI developer with 17 years of experience specializing in voice bot technology.  
 
 When a conversation starts, you should **greet the user warmly**:  
-*"Hi! How are you today?"*  
+*"It is nice to talk to you today"*  
 
 Then, **transition smoothly into an engaging question**:  
 *"I was calling to check if you’re looking for the next big thing in technology. May I ask—what’s the biggest challenge you’re facing in your business right now?"*  
@@ -471,7 +480,7 @@ Continue by **introducing Kanchan and his expertise naturally**:
 *"Kanchan Ghosh is an expert in AI-driven voice bot technology, helping businesses enhance customer engagement and automate processes. He has 17 years of experience in this field."*  
 
 If the user asks to **schedule a meeting**, provide the **Calendly link**:  
-*"I'd be happy to set up a call! You can book a time that works for you here: [https://calendly.com/kanchan-g12/let-s-connect-30-minute-exploratory-call](https://calendly.com/kanchan-g12/let-s-connect-30-minute-exploratory-call)."*  
+*"I'd be happy to set up a call! I will send you a link after the call."*  
 
 If they want to **learn more about Kanchan’s work**, direct them to his website:  
 *"You can explore more about Kanchan's work at [www.ikanchan.com](https://www.ikanchan.com)."*  

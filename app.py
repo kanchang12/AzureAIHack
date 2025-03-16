@@ -61,7 +61,7 @@ except Exception as e:
 
 try:
     openai_api_key = os.environ.get("OPENAI_API_KEY")
-    openai_client = OpenAI(api_key=openai_api_key)
+    client = OpenAI(api_key=openai_api_key)
     logger.info("OpenAI client initialized successfully")
 except Exception as e:
     logger.error(f"Failed to initialize OpenAI client: {e}")
@@ -463,7 +463,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             prompt += f"User: {message['user']}\nAssistant: {message['assistant']}\n"
         prompt += f"User: {user_input}\nAssistant: "
 
-        response = openai_client.chat.completions.create(
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Or your preferred model
             messages=[
                 {"role": "system", "content": "You are Sam, an AI assistant for Kanchan Ghosh."},

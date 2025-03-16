@@ -462,7 +462,7 @@ def get_ai_response(user_input, call_sid=None, web_session_id=None):
             prompt += f"User: {message['user']}\nAssistant: {message['assistant']}\n"
         prompt += f"User: {user_input}\nAssistant: "
 
-        response = openai.ChatCompletion.create(
+        response = openai_client.chat.completions.create(
             model="gpt-3.5-turbo",  # Or your preferred model
             messages=[
                 {"role": "system", "content": "You are Sam, an AI assistant for Kanchan Ghosh."},

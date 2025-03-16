@@ -10,7 +10,7 @@ import time
 import threading
 import sys
 from dotenv import load_dotenv
-import openai  # Import the OpenAI library
+from openai import OpenAI # Import the OpenAI library
 import requests
 
 load_dotenv()

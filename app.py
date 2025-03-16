@@ -295,7 +295,7 @@ def twiml_response():
     # Use a clean, simple greeting with a short pause at the start for connection stability
     response.pause(length=0.5)
     gather.say(
-        "Hello, this is Sam calling on behalf of Kanchan Ghosh. I'm reaching out to see if you're looking for an automated AI agent for your business.",
+        "Hello, this is Sam calling on behalf of Kanchan Ghosh. How are you today?",
         voice='Polly.Matthew-Neural'
     )
     
